@@ -1,0 +1,3091 @@
+"use client";
+
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useSearchParams } from "next/navigation";
+
+type Sex =
+  | "MALE"
+  | "FEMALE"
+  | "UNKNOWN";
+
+type AnimalStatus =
+  | "HEALTHY"
+  | "SICK"
+  | "BREEDING"
+  | "SOLD"
+  | "DECEASED"
+  | "OTHER";
+
+type AnimalImage = {
+  id: string;
+  url: string;
+  publicId?: string | null;
+  caption?: string | null;
+  isPrimary: boolean;
+  createdAt?: string;
+};
+
+type ParentAnimal = {
+  id: string;
+  code: string;
+  name: string;
+  genetics?: string | null;
+};
+
+type Breeding = {
+  id: string;
+
+  maleId?: string | null;
+  femaleId?: string | null;
+
+  startDate?: string | null;
+  pairingDate?: string | null;
+  expectedDate?: string | null;
+  layingDate?: string | null;
+
+  status: string;
+
+  male?: ParentAnimal | null;
+  female?: ParentAnimal | null;
+
+  offspring?: {
+    id: string;
+    animalId?: string | null;
+  }[];
+};
+
+type SpeciesOption = {
+  id: string;
+  name: string;
+  scientificName?: string | null;
+  description?: string | null;
+  _count?: {
+    animals: number;
+    morphs: number;
+  };
+};
+
+type Animal = {
+  id: string;
+  code: string;
+  name: string;
+
+  sex: Sex;
+
+  weight?: string | number | null;
+
+  purchasePrice?: string | number | null;
+
+  salePrice?: string | number | null;
+
+  status: AnimalStatus;
+
+  genetics?: string | null;
+
+  notes?: string | null;
+
+  species?: {
+    id?: string;
+    name?: string;
+  } | null;
+
+  morph?: {
+    id?: string;
+    name?: string;
+  } | null;
+
+  images?: AnimalImage[];
+
+  father?: ParentAnimal | null;
+  fatherId?: string | null;
+
+  mother?: ParentAnimal | null;
+  motherId?: string | null;
+
+  offspring?: {
+    id: string;
+    animalId?: string | null;
+
+    breeding?: Breeding | null;
+  }[];
+};
+
+type AnimalForm = {
+  name: string;
+  species: string;
+  morph: string;
+  sex: Sex;
+  weight: string;
+  purchasePrice: string;
+  status: AnimalStatus;
+  genetics: string;
+  fatherId: string;
+  motherId: string;
+  sourceBreedingId: string;
+  notes: string;
+};
+
+const emptyForm: AnimalForm = {
+  name: "",
+  species: "",
+  morph: "",
+  sex: "UNKNOWN",
+  weight: "",
+  purchasePrice: "",
+  status: "HEALTHY",
+  genetics: "",
+  fatherId: "",
+  motherId: "",
+  sourceBreedingId: "",
+  notes: "",
+};
+
+const sexLabels: Record<Sex, string> = {
+  MALE: "Đực",
+  FEMALE: "Cái",
+  UNKNOWN: "Chưa xác định",
+};
+
+const statusLabels: Record<
+  AnimalStatus,
+  string
+> = {
+  HEALTHY: "Đang khỏe",
+  SICK: "Đang bệnh",
+  BREEDING: "Đang sinh sản",
+  SOLD: "Đã bán",
+  DECEASED: "Đã mất",
+  OTHER: "Khác",
+};
+
+const statusClasses: Record<
+  AnimalStatus,
+  string
+> = {
+  HEALTHY:
+    "bg-emerald-50 text-emerald-700",
+  SICK:
+    "bg-red-50 text-red-700",
+  BREEDING:
+    "bg-pink-50 text-pink-700",
+  SOLD:
+    "bg-blue-50 text-blue-700",
+  DECEASED:
+    "bg-gray-100 text-gray-600",
+  OTHER:
+    "bg-gray-100 text-gray-600",
+};
+
+const breedingStatusLabels: Record<
+  string,
+  string
+> = {
+  PLANNED: "Đã lên kế hoạch",
+  PAIRING: "Đã phối",
+  PREGNANT: "Đang mang thai",
+  LAID_EGGS: "Đã đẻ trứng",
+  COMPLETED: "Hoàn thành",
+  FAILED: "Thất bại",
+  CANCELLED: "Đã hủy",
+};
+
+function formatMoney(
+  value:
+    | string
+    | number
+    | null
+    | undefined
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "—";
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return "—";
+  }
+
+  return (
+    new Intl.NumberFormat("vi-VN").format(
+      number
+    ) + " đ"
+  );
+}
+
+function formatWeight(
+  value:
+    | string
+    | number
+    | null
+    | undefined
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "—";
+  }
+
+  return `${value} g`;
+}
+
+function formatDate(
+  value?: string | null
+) {
+  if (!value) {
+    return "—";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat(
+    "vi-VN"
+  ).format(date);
+}
+
+function getAnimalImage(
+  animal: Animal
+) {
+  if (
+    !animal.images ||
+    animal.images.length === 0
+  ) {
+    return null;
+  }
+
+  const primary =
+    animal.images.find(
+      (image) =>
+        image.isPrimary
+    );
+
+  return (
+    primary?.url ??
+    animal.images[0]?.url ??
+    null
+  );
+}
+
+function getBreedingTitle(
+  breeding: Breeding
+) {
+  const male =
+    breeding.male?.name ||
+    "Không có con đực";
+
+  const female =
+    breeding.female?.name ||
+    "Không xác định";
+
+  return `${male} × ${female}`;
+}
+
+function getSourceBreeding(
+  animal: Animal
+) {
+  if (
+    !animal.offspring ||
+    animal.offspring.length === 0
+  ) {
+    return null;
+  }
+
+  const item =
+    animal.offspring.find(
+      (offspring) =>
+        offspring.breeding
+    );
+
+  return item?.breeding || null;
+}
+
+export default function AnimalsPage() {
+  const searchParams =
+    useSearchParams();
+
+  const autoOpenedEditRef =
+    useRef(false);
+
+  const [animals, setAnimals] =
+    useState<Animal[]>([]);
+
+  const [breedings, setBreedings] =
+    useState<Breeding[]>([]);
+
+  // ============================
+  // DANH SÁCH LOÀI
+  // ============================
+
+  const [speciesOptions, setSpeciesOptions] =
+    useState<SpeciesOption[]>([]);
+
+  const [
+    showSpeciesManager,
+    setShowSpeciesManager,
+  ] = useState(false);
+
+  const [
+    newSpeciesName,
+    setNewSpeciesName,
+  ] = useState("");
+
+  const [
+    speciesError,
+    setSpeciesError,
+  ] = useState("");
+
+  const [
+    savingSpecies,
+    setSavingSpecies,
+  ] = useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [search, setSearch] =
+    useState("");
+
+  const [
+    speciesFilter,
+    setSpeciesFilter,
+  ] = useState("ALL");
+
+  const [
+    sexFilter,
+    setSexFilter,
+  ] = useState("ALL");
+
+  const [
+    statusFilter,
+    setStatusFilter,
+  ] = useState("ALL");
+
+  const [showForm, setShowForm] =
+    useState(false);
+
+  const [
+    editingAnimal,
+    setEditingAnimal,
+  ] = useState<Animal | null>(null);
+
+  const [form, setForm] =
+    useState<AnimalForm>(
+      emptyForm
+    );
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const [
+    formError,
+    setFormError,
+  ] = useState("");
+
+  // ============================
+  // ẢNH
+  // ============================
+
+  const [
+    selectedFiles,
+    setSelectedFiles,
+  ] = useState<File[]>([]);
+
+  const [
+    previewUrls,
+    setPreviewUrls,
+  ] = useState<string[]>([]);
+
+  const [
+    uploadingImages,
+    setUploadingImages,
+  ] = useState(false);
+
+  const fileInputRef =
+    useRef<HTMLInputElement | null>(
+      null
+    );
+
+  // ============================
+  // LOAD SPECIES
+  // ============================
+
+  async function loadSpecies() {
+    try {
+      const response =
+        await fetch(
+          "/api/species",
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          "Không thể lấy danh sách loài."
+        );
+      }
+
+      const data =
+        await response.json();
+
+      setSpeciesOptions(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "loadSpecies error:",
+        error
+      );
+
+      setSpeciesOptions([]);
+    }
+  }
+
+  // ============================
+  // LOAD ANIMALS
+  // ============================
+
+  async function loadAnimals() {
+    try {
+      setLoading(true);
+
+      const response =
+        await fetch(
+          "/api/animals",
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (!response.ok) {
+        throw new Error(
+          "Không thể lấy danh sách động vật."
+        );
+      }
+
+      const data =
+        await response.json();
+
+      setAnimals(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (error) {
+      console.error(error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải danh sách động vật."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ============================
+  // LOAD BREEDINGS
+  // ============================
+
+  async function loadBreedings() {
+    try {
+      const response =
+        await fetch(
+          "/api/breeding",
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (!response.ok) {
+        setBreedings([]);
+        return;
+      }
+
+      const data =
+        await response.json();
+
+      setBreedings(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (error) {
+      console.error(
+        "loadBreedings error:",
+        error
+      );
+
+      setBreedings([]);
+    }
+  }
+
+  async function loadData() {
+    await Promise.all([
+      loadAnimals(),
+      loadBreedings(),
+      loadSpecies(),
+    ]);
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // ============================
+  // FILTER
+  // ============================
+
+  const filteredAnimals =
+    useMemo(() => {
+      return animals.filter(
+        (animal) => {
+          const keyword =
+            search
+              .trim()
+              .toLowerCase();
+
+          const matchesSearch =
+            !keyword ||
+            animal.name
+              .toLowerCase()
+              .includes(keyword) ||
+            animal.code
+              .toLowerCase()
+              .includes(keyword) ||
+            animal.species?.name
+              ?.toLowerCase()
+              .includes(keyword) ||
+            animal.morph?.name
+              ?.toLowerCase()
+              .includes(keyword) ||
+            animal.genetics
+              ?.toLowerCase()
+              .includes(keyword);
+
+          const matchesSpecies =
+            speciesFilter ===
+              "ALL" ||
+            animal.species?.name ===
+              speciesFilter;
+
+          const matchesSex =
+            sexFilter ===
+              "ALL" ||
+            animal.sex ===
+              sexFilter;
+
+          const matchesStatus =
+            statusFilter ===
+              "ALL" ||
+            animal.status ===
+              statusFilter;
+
+          return (
+            matchesSearch &&
+            matchesSpecies &&
+            matchesSex &&
+            matchesStatus
+          );
+        }
+      );
+    }, [
+      animals,
+      search,
+      speciesFilter,
+      sexFilter,
+      statusFilter,
+    ]);
+
+  // ============================
+  // MALE / FEMALE
+  // ============================
+
+  const maleAnimals =
+    useMemo(() => {
+      return animals.filter(
+        (animal) =>
+          animal.sex === "MALE"
+      );
+    }, [animals]);
+
+  const femaleAnimals =
+    useMemo(() => {
+      return animals.filter(
+        (animal) =>
+          animal.sex === "FEMALE"
+      );
+    }, [animals]);
+
+  // ============================
+  // RESET FORM
+  // ============================
+
+  function clearSelectedFiles() {
+    previewUrls.forEach(
+      (url) =>
+        URL.revokeObjectURL(url)
+    );
+
+    setSelectedFiles([]);
+    setPreviewUrls([]);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value =
+        "";
+    }
+  }
+
+  function resetForm() {
+    setForm({
+      ...emptyForm,
+    });
+
+    clearSelectedFiles();
+  }
+
+  function openAddForm() {
+    setEditingAnimal(null);
+    resetForm();
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function openEditForm(
+    animal: Animal
+  ) {
+    const sourceBreeding =
+      getSourceBreeding(animal);
+
+    setEditingAnimal(animal);
+
+    setForm({
+      name: animal.name,
+
+      species:
+        animal.species?.name ||
+        "",
+
+      morph:
+        animal.morph?.name ||
+        "",
+
+      sex: animal.sex,
+
+      weight:
+        animal.weight ===
+          null ||
+        animal.weight ===
+          undefined
+          ? ""
+          : String(
+              animal.weight
+            ),
+
+      purchasePrice:
+        animal.purchasePrice ===
+            null ||
+        animal.purchasePrice ===
+            undefined
+          ? ""
+          : String(
+              animal.purchasePrice
+            ),
+
+      status: animal.status,
+
+      genetics:
+        animal.genetics || "",
+
+      fatherId:
+        animal.father?.id ||
+        animal.fatherId ||
+        "",
+
+      motherId:
+        animal.mother?.id ||
+        animal.motherId ||
+        "",
+
+      sourceBreedingId:
+        sourceBreeding?.id ||
+        "",
+
+      notes:
+        animal.notes || "",
+    });
+
+    clearSelectedFiles();
+    setFormError("");
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    if (saving) {
+      return;
+    }
+
+    setShowForm(false);
+    setEditingAnimal(null);
+    setFormError("");
+    resetForm();
+  }
+
+  // ============================
+  // MỞ FORM SỬA TỪ TỔNG QUAN
+  // ============================
+
+  useEffect(() => {
+    const editId =
+      searchParams.get("edit");
+
+    if (
+      !editId ||
+      loading ||
+      autoOpenedEditRef.current ||
+      animals.length === 0
+    ) {
+      return;
+    }
+
+    const animalToEdit =
+      animals.find(
+        (animal) =>
+          animal.id === editId
+      );
+
+    if (!animalToEdit) {
+      return;
+    }
+
+    autoOpenedEditRef.current =
+      true;
+
+    openEditForm(
+      animalToEdit
+    );
+
+    window.history.replaceState(
+      null,
+      "",
+      "/animals"
+    );
+  }, [
+    animals,
+    loading,
+    searchParams,
+  ]);
+
+  function updateForm(
+    field: keyof AnimalForm,
+    value: string
+  ) {
+    setForm(
+      (current) => ({
+        ...current,
+        [field]: value,
+      })
+    );
+  }
+
+  // ============================
+  // THÊM LOÀI
+  // ============================
+
+  async function createSpecies() {
+    const name =
+      newSpeciesName.trim();
+
+    if (!name) {
+      setSpeciesError(
+        "Bạn chưa nhập tên loài."
+      );
+      return;
+    }
+
+    try {
+      setSavingSpecies(true);
+      setSpeciesError("");
+
+      const response =
+        await fetch(
+          "/api/species",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              name,
+            }),
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            data?.detail ||
+            "Không thể thêm loài."
+        );
+      }
+
+      await loadSpecies();
+
+      // Tự động chọn loài vừa thêm
+      updateForm(
+        "species",
+        data.name
+      );
+
+      setNewSpeciesName("");
+      setShowSpeciesManager(false);
+    } catch (error) {
+      console.error(error);
+
+      setSpeciesError(
+        error instanceof Error
+          ? error.message
+          : "Không thể thêm loài."
+      );
+    } finally {
+      setSavingSpecies(false);
+    }
+  }
+
+  // ============================
+  // XÓA LOÀI
+  // ============================
+
+  async function deleteSpecies(
+    species: SpeciesOption
+  ) {
+    const animalCount =
+      species._count?.animals ?? 0;
+
+    if (animalCount > 0) {
+      setSpeciesError(
+        `Không thể xóa "${species.name}" vì vẫn còn ${animalCount} cá thể thuộc loài này.`
+      );
+      return;
+    }
+
+    setSpeciesError("");
+
+    try {
+      const response =
+        await fetch(
+          `/api/species/${species.id}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            data?.detail ||
+            "Không thể xóa loài."
+        );
+      }
+
+      if (
+        form.species ===
+        species.name
+      ) {
+        updateForm(
+          "species",
+          ""
+        );
+      }
+
+      await loadSpecies();
+    } catch (error) {
+      console.error(error);
+
+      setSpeciesError(
+        error instanceof Error
+          ? error.message
+          : "Không thể xóa loài."
+      );
+    }
+  }
+
+  // ============================
+  // CHỌN ẢNH
+  // ============================
+
+  function handleFileSelect(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const files =
+      Array.from(
+        event.target.files || []
+      );
+
+    if (files.length === 0) {
+      return;
+    }
+
+    const validFiles =
+      files.filter((file) => {
+        const validType =
+          [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+          ].includes(
+            file.type
+          );
+
+        const validSize =
+          file.size <=
+          10 * 1024 * 1024;
+
+        if (!validType) {
+          setFormError(
+            `File "${file.name}" không phải định dạng ảnh được hỗ trợ.`
+          );
+          return false;
+        }
+
+        if (!validSize) {
+          setFormError(
+            `Ảnh "${file.name}" quá lớn. Tối đa 10MB.`
+          );
+          return false;
+        }
+
+        return true;
+      });
+
+    const newPreviewUrls =
+      validFiles.map(
+        (file) =>
+          URL.createObjectURL(
+            file
+          )
+      );
+
+    setSelectedFiles(
+      (current) => [
+        ...current,
+        ...validFiles,
+      ]
+    );
+
+    setPreviewUrls(
+      (current) => [
+        ...current,
+        ...newPreviewUrls,
+      ]
+    );
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value =
+        "";
+    }
+  }
+
+  function removeSelectedFile(
+    index: number
+  ) {
+    const url =
+      previewUrls[index];
+
+    if (url) {
+      URL.revokeObjectURL(url);
+    }
+
+    setSelectedFiles(
+      (current) =>
+        current.filter(
+          (_, i) =>
+            i !== index
+        )
+    );
+
+    setPreviewUrls(
+      (current) =>
+        current.filter(
+          (_, i) =>
+            i !== index
+        )
+    );
+  }
+
+  // ============================
+  // UPLOAD ẢNH
+  // ============================
+
+  async function uploadImages(
+    animalId: string
+  ) {
+    if (
+      selectedFiles.length ===
+      0
+    ) {
+      return true;
+    }
+
+    try {
+      setUploadingImages(true);
+
+      const existingAnimal =
+        animals.find(
+          (animal) =>
+            animal.id ===
+            animalId
+        );
+
+      const hasPrimary =
+        !!existingAnimal?.images?.some(
+          (image) =>
+            image.isPrimary
+        );
+
+      for (
+        let index = 0;
+        index <
+        selectedFiles.length;
+        index++
+      ) {
+        const file =
+          selectedFiles[index];
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file
+        );
+
+        formData.append(
+          "isPrimary",
+          String(
+            !hasPrimary &&
+              index === 0
+          )
+        );
+
+        const response =
+          await fetch(
+            `/api/animals/${animalId}/images`,
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          throw new Error(
+            data?.detail ||
+              data?.error ||
+              "Không thể tải ảnh lên."
+          );
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error(
+        "uploadImages error:",
+        error
+      );
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải ảnh lên."
+      );
+
+      return false;
+    } finally {
+      setUploadingImages(false);
+    }
+  }
+
+  // ============================
+  // ĐẶT ẢNH CHÍNH
+  // ============================
+
+  async function setPrimaryImage(
+    animal: Animal,
+    imageId: string
+  ) {
+    try {
+      const response =
+        await fetch(
+          `/api/animals/${animal.id}/images`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+            body: JSON.stringify({
+              imageId,
+            }),
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.error ||
+            "Không thể đặt ảnh chính."
+        );
+      }
+
+      await loadData();
+
+      const refreshed =
+        await fetch(
+          "/api/animals",
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (refreshed.ok) {
+        const animalsData =
+          await refreshed.json();
+
+        const updatedAnimal =
+          animalsData.find(
+            (item: Animal) =>
+              item.id ===
+              animal.id
+          );
+
+        if (updatedAnimal) {
+          setEditingAnimal(
+            updatedAnimal
+          );
+        }
+      }
+    } catch (error) {
+      console.error(error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể đặt ảnh chính."
+      );
+    }
+  }
+
+  // ============================
+  // XÓA ẢNH
+  // ============================
+
+  async function deleteImage(
+    animal: Animal,
+    image: AnimalImage
+  ) {
+    try {
+      const response =
+        await fetch(
+          `/api/animals/${animal.id}/images?imageId=${encodeURIComponent(
+            image.id
+          )}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.error ||
+            "Không thể xóa ảnh."
+        );
+      }
+
+      await loadData();
+
+      const refreshed =
+        await fetch(
+          "/api/animals",
+          {
+            cache: "no-store",
+          }
+        );
+
+      if (refreshed.ok) {
+        const animalsData =
+          await refreshed.json();
+
+        const updatedAnimal =
+          animalsData.find(
+            (item: Animal) =>
+              item.id ===
+              animal.id
+          );
+
+        if (updatedAnimal) {
+          setEditingAnimal(
+            updatedAnimal
+          );
+        }
+      }
+    } catch (error) {
+      console.error(error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể xóa ảnh."
+      );
+    }
+  }
+
+  // ============================
+  // LƯU ĐỘNG VẬT
+  // ============================
+
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    setFormError("");
+
+    if (!form.name.trim()) {
+      setFormError(
+        "Bạn chưa nhập tên cá thể."
+      );
+
+      return;
+    }
+
+    if (!form.species.trim()) {
+      setFormError(
+        "Bạn chưa chọn loài động vật."
+      );
+
+      return;
+    }
+
+    if (
+      form.fatherId &&
+      form.motherId &&
+      form.fatherId ===
+        form.motherId
+    ) {
+      setFormError(
+        "Bố và mẹ không thể là cùng một cá thể."
+      );
+
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const isEditing =
+        editingAnimal !== null;
+
+      const url =
+        isEditing
+          ? `/api/animals/${editingAnimal.id}`
+          : "/api/animals";
+
+      const method =
+        isEditing
+          ? "PUT"
+          : "POST";
+
+      const response =
+        await fetch(url, {
+          method,
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            name:
+              form.name.trim(),
+
+            species:
+              form.species.trim(),
+
+            morph:
+              form.morph.trim(),
+
+            sex:
+              form.sex,
+
+            weight:
+              form.weight.trim(),
+
+            purchasePrice:
+              form.purchasePrice.trim(),
+
+            status:
+              form.status,
+
+            genetics:
+              form.genetics.trim(),
+
+            fatherId:
+              form.fatherId ||
+              null,
+
+            motherId:
+              form.motherId ||
+              null,
+
+            sourceBreedingId:
+              form.sourceBreedingId ||
+              null,
+
+            notes:
+              form.notes.trim(),
+          }),
+        });
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.error ||
+            "Không thể lưu động vật."
+        );
+      }
+
+      const savedAnimal =
+        data as Animal;
+
+      if (
+        selectedFiles.length >
+        0
+      ) {
+        const uploaded =
+          await uploadImages(
+            savedAnimal.id
+          );
+
+        if (!uploaded) {
+          setSaving(false);
+          return;
+        }
+      }
+
+      clearSelectedFiles();
+
+      setShowForm(false);
+      setEditingAnimal(null);
+      setFormError("");
+      resetForm();
+
+      await loadData();
+
+    } catch (error) {
+      console.error(error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể lưu động vật."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ============================
+  // XÓA ĐỘNG VẬT
+  // ============================
+
+  async function deleteAnimal(
+    animal: Animal
+  ) {
+    try {
+      const response =
+        await fetch(
+          `/api/animals/${animal.id}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.detail ||
+            data?.error ||
+            "Không thể xóa động vật."
+        );
+      }
+
+      await loadData();
+    } catch (error) {
+      console.error(error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể xóa động vật."
+      );
+    }
+  }
+
+  // ============================
+  // RENDER
+  // ============================
+
+  return (
+    <div className="min-h-screen bg-[#f7f9f8] p-6 text-slate-900">
+
+      <div className="mx-auto max-w-[1500px]">
+
+        {/* HEADER */}
+
+        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+
+          <div>
+            <p className="text-sm text-slate-500">
+              Quản lý trang trại
+            </p>
+
+            <h1 className="mt-1 text-3xl font-bold">
+              🐾 Động vật
+            </h1>
+
+            <p className="mt-1 text-slate-500">
+              Quản lý toàn bộ cá thể trong trang trại.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={
+              openAddForm
+            }
+            className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            + Thêm động vật
+          </button>
+
+        </div>
+
+        {/* FILTER */}
+
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+          <div className="grid gap-4 lg:grid-cols-4">
+
+            <div>
+
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Tìm kiếm
+              </label>
+
+              <input
+                type="text"
+                value={search}
+                onChange={(event) =>
+                  setSearch(
+                    event.target.value
+                  )
+                }
+                placeholder="Tên, mã, loài, morph, gene..."
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              />
+
+            </div>
+
+            {/* LOÀI */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Loài
+              </label>
+
+              <select
+                value={
+                  speciesFilter
+                }
+                onChange={(event) =>
+                  setSpeciesFilter(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+              >
+
+                <option value="ALL">
+                  Tất cả loài
+                </option>
+
+                {speciesOptions.map(
+                  (species) => (
+                    <option
+                      key={
+                        species.id
+                      }
+                      value={
+                        species.name
+                      }
+                    >
+                      {
+                        species.name
+                      }
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+            {/* GIỚI TÍNH */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Giới tính
+              </label>
+
+              <select
+                value={
+                  sexFilter
+                }
+                onChange={(event) =>
+                  setSexFilter(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+              >
+
+                <option value="ALL">
+                  Tất cả
+                </option>
+
+                <option value="MALE">
+                  Đực
+                </option>
+
+                <option value="FEMALE">
+                  Cái
+                </option>
+
+                <option value="UNKNOWN">
+                  Chưa xác định
+                </option>
+
+              </select>
+
+            </div>
+
+            {/* TRẠNG THÁI */}
+
+            <div>
+
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Trạng thái
+              </label>
+
+              <select
+                value={
+                  statusFilter
+                }
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+              >
+
+                <option value="ALL">
+                  Tất cả trạng thái
+                </option>
+
+                {Object.entries(
+                  statusLabels
+                ).map(
+                  ([
+                    value,
+                    label,
+                  ]) => (
+                    <option
+                      key={
+                        value
+                      }
+                      value={
+                        value
+                      }
+                    >
+                      {label}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+
+            <p className="text-sm text-slate-500">
+              Hiển thị{" "}
+              <strong className="text-slate-900">
+                {
+                  filteredAnimals.length
+                }
+              </strong>{" "}
+              /{" "}
+              <strong className="text-slate-900">
+                {animals.length}
+              </strong>{" "}
+              cá thể
+            </p>
+
+            <button
+              type="button"
+              onClick={
+                loadData
+              }
+              className="text-sm font-semibold text-emerald-700 hover:underline"
+            >
+              Làm mới →
+            </button>
+
+          </div>
+
+        </section>
+
+        {/* DANH SÁCH */}
+
+        {loading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+            Đang tải dữ liệu...
+          </div>
+        ) : filteredAnimals.length ===
+          0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+
+            <div className="text-6xl">
+              🐾
+            </div>
+
+            <h2 className="mt-4 text-xl font-bold">
+              Không tìm thấy cá thể
+            </h2>
+
+            <p className="mt-2 text-slate-500">
+              Thử thay đổi bộ lọc hoặc thêm cá thể mới.
+            </p>
+
+            <button
+              type="button"
+              onClick={
+                openAddForm
+              }
+              className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"
+            >
+              + Thêm động vật
+            </button>
+
+          </div>
+        ) : (
+
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+
+            {filteredAnimals.map(
+              (animal) => {
+                const image =
+                  getAnimalImage(
+                    animal
+                  );
+
+                return (
+                  <article
+                    key={
+                      animal.id
+                    }
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+
+                    {/* ẢNH */}
+
+                    <div className="relative flex h-56 items-center justify-center bg-slate-100">
+
+                      {image ? (
+                        <img
+                          src={
+                            image
+                          }
+                          alt={
+                            animal.name
+                          }
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-7xl">
+                          🐍
+                        </div>
+                      )}
+
+                      <div className="absolute right-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                        {animal.images?.length ||
+                          0}{" "}
+                        ảnh
+                      </div>
+
+                    </div>
+
+                    {/* INFO */}
+
+                    <div className="p-5">
+
+                      <div className="flex items-start justify-between gap-3">
+
+                        <div className="min-w-0">
+
+                          <p className="text-xs font-bold text-emerald-600">
+                            {
+                              animal.code
+                            }
+                          </p>
+
+                          <h2 className="mt-1 truncate text-xl font-bold">
+                            {
+                              animal.name
+                            }
+                          </h2>
+
+                        </div>
+
+                        <span
+                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                            statusClasses[
+                              animal.status
+                            ]
+                          }`}
+                        >
+                          {
+                            statusLabels[
+                              animal.status
+                            ]
+                          }
+                        </span>
+
+                      </div>
+
+                      <div className="mt-4 space-y-2 text-sm">
+
+                        <InfoRow
+                          label="🐾 Loài"
+                          value={
+                            animal
+                              .species
+                              ?.name ||
+                            "Chưa xác định"
+                          }
+                        />
+
+                        <InfoRow
+                          label="🎨 Biến thể"
+                          value={
+                            animal
+                              .morph
+                              ?.name ||
+                            "Chưa xác định"
+                          }
+                        />
+
+                        <InfoRow
+                          label="⚥ Giới tính"
+                          value={
+                            sexLabels[
+                              animal.sex
+                            ]
+                          }
+                        />
+
+                        <InfoRow
+                          label="🧬 Gene"
+                          value={
+                            animal.genetics ||
+                            "Chưa cập nhật"
+                          }
+                        />
+
+                        <InfoRow
+                          label="⚖️ Cân nặng"
+                          value={formatWeight(
+                            animal.weight
+                          )}
+                        />
+
+                        <InfoRow
+                          label="💰 Giá mua"
+                          value={formatMoney(
+                            animal.purchasePrice
+                          )}
+                        />
+
+                      </div>
+
+                      <div className="mt-5 flex gap-2">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEditForm(
+                              animal
+                            )
+                          }
+                          className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        >
+                          ✏️ Sửa
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteAnimal(
+                              animal
+                            )
+                          }
+                          className="rounded-xl border border-red-200 px-3 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                        >
+                          🗑️
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </article>
+                );
+              }
+            )}
+
+          </div>
+        )}
+
+      </div>
+
+      {/* ================================================== */}
+      {/* MODAL QUẢN LÝ LOÀI */}
+      {/* ================================================== */}
+
+      {showSpeciesManager && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              setShowSpeciesManager(
+                false
+              );
+            }
+          }}
+        >
+
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
+
+              <div>
+
+                <h2 className="text-xl font-bold">
+                  🐾 Quản lý loài
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Thêm hoặc xóa các loài đang quản lý.
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowSpeciesManager(
+                    false
+                  )
+                }
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500 hover:bg-slate-200"
+              >
+                ×
+              </button>
+
+            </div>
+
+            <div className="p-6">
+
+              {/* THÊM LOÀI */}
+
+              <div className="rounded-xl bg-slate-50 p-4">
+
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Tên loài mới
+                </label>
+
+                <div className="flex gap-2">
+
+                  <input
+                    type="text"
+                    value={
+                      newSpeciesName
+                    }
+                    onChange={(
+                      event
+                    ) =>
+                      setNewSpeciesName(
+                        event.target
+                          .value
+                      )
+                    }
+                    onKeyDown={(
+                      event
+                    ) => {
+                      if (
+                        event.key ===
+                        "Enter"
+                      ) {
+                        event.preventDefault();
+                        createSpecies();
+                      }
+                    }}
+                    placeholder="Ví dụ: Corn Snake"
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={
+                      createSpecies
+                    }
+                    disabled={
+                      savingSpecies
+                    }
+                    className="rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {savingSpecies
+                      ? "..."
+                      : "Thêm"}
+                  </button>
+
+                </div>
+
+                {speciesError && (
+                  <p className="mt-2 text-sm text-red-600">
+                    {
+                      speciesError
+                    }
+                  </p>
+                )}
+
+              </div>
+
+              {/* DANH SÁCH LOÀI */}
+
+              <div className="mt-6">
+
+                <h3 className="mb-3 font-bold">
+                  Loài đã lưu
+                </h3>
+
+                <div className="max-h-80 space-y-2 overflow-y-auto">
+
+                  {speciesOptions.length ===
+                  0 ? (
+                    <p className="py-5 text-center text-sm text-slate-400">
+                      Chưa có loài nào.
+                    </p>
+                  ) : (
+                    speciesOptions.map(
+                      (species) => {
+
+                        const animalCount =
+                          species
+                            ._count
+                            ?.animals ??
+                          0;
+
+                        return (
+                          <div
+                            key={
+                              species.id
+                            }
+                            className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
+                          >
+
+                            <div>
+
+                              <p className="font-semibold">
+                                🐾{" "}
+                                {
+                                  species.name
+                                }
+                              </p>
+
+                              <p className="text-xs text-slate-400">
+                                {
+                                  animalCount
+                                }{" "}
+                                cá thể
+                              </p>
+
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                deleteSpecies(
+                                  species
+                                )
+                              }
+                              disabled={
+                                animalCount >
+                                0
+                              }
+                              className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+                                animalCount >
+                                0
+                                  ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                                  : "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                              }`}
+                            >
+                              🗑️ Xóa
+                            </button>
+
+                          </div>
+                        );
+                      }
+                    )
+                  )}
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="flex justify-end border-t border-slate-100 px-6 py-4">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setShowSpeciesManager(
+                    false
+                  )
+                }
+                className="rounded-xl border border-slate-200 px-5 py-2.5 font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Đóng
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ================================================== */}
+      {/* MODAL THÊM / SỬA */}
+      {/* ================================================== */}
+
+      {showForm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onMouseDown={(
+            event
+          ) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeForm();
+            }
+          }}
+        >
+
+          <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+
+            {/* HEADER */}
+
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-5">
+
+              <div>
+
+                <h2 className="text-2xl font-bold">
+                  {editingAnimal
+                    ? "Sửa thông tin cá thể"
+                    : "Thêm động vật"}
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Quản lý thông tin, phả hệ và ảnh của cá thể.
+                </p>
+
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  closeForm
+                }
+                disabled={
+                  saving
+                }
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-2xl text-slate-500 hover:bg-slate-200"
+              >
+                ×
+              </button>
+
+            </div>
+
+            <form
+              onSubmit={
+                handleSubmit
+              }
+              className="p-6"
+            >
+
+              {formError && (
+                <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {formError}
+                </div>
+              )}
+
+              {/* THÔNG TIN CƠ BẢN */}
+
+              <section>
+
+                <SectionTitle>
+                  🐾 Thông tin cơ bản
+                </SectionTitle>
+
+                <div className="grid gap-5 md:grid-cols-2">
+
+                  <Field
+                    label="Tên cá thể *"
+                    value={
+                      form.name
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "name",
+                        value
+                      )
+                    }
+                    placeholder="Ví dụ: Kiki"
+                  />
+
+                  {/* LOÀI */}
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Loài *
+                    </label>
+
+                    <div className="flex gap-2">
+
+                      <select
+                        value={
+                          form.species
+                        }
+                        onChange={(event) => {
+                          const newSpecies =
+                            event.target.value;
+
+                          setForm((current) => ({
+                            ...current,
+                            species: newSpecies,
+                            fatherId: "",
+                            motherId: "",
+                          }));
+                        }}
+                        className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                      >
+
+                        <option value="">
+                          — Chọn loài —
+                        </option>
+
+                        {speciesOptions.map(
+                          (
+                            species
+                          ) => (
+                            <option
+                              key={
+                                species.id
+                              }
+                              value={
+                                species.name
+                              }
+                            >
+                              {
+                                species.name
+                              }
+                            </option>
+                          )
+                        )}
+
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSpeciesError(
+                            ""
+                          );
+                          setNewSpeciesName(
+                            ""
+                          );
+                          setShowSpeciesManager(
+                            true
+                          );
+                        }}
+                        className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 font-semibold text-emerald-700 hover:bg-emerald-100"
+                      >
+                        + Loài
+                      </button>
+
+                    </div>
+
+                    <p className="mt-2 text-xs text-slate-400">
+                      Chọn loài đã lưu hoặc thêm loài mới.
+                    </p>
+
+                  </div>
+
+                  <Field
+                    label="Biến thể / Morph"
+                    value={
+                      form.morph
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "morph",
+                        value
+                      )
+                    }
+                    placeholder="Ví dụ: Albino"
+                  />
+
+                  {/* GIỚI TÍNH */}
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Giới tính
+                    </label>
+
+                    <select
+                      value={
+                        form.sex
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateForm(
+                          "sex",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+                    >
+
+                      <option value="UNKNOWN">
+                        Chưa xác định
+                      </option>
+
+                      <option value="MALE">
+                        Đực
+                      </option>
+
+                      <option value="FEMALE">
+                        Cái
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                  <Field
+                    label="Cân nặng (g)"
+                    value={
+                      form.weight
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "weight",
+                        value
+                      )
+                    }
+                    placeholder="Ví dụ: 350"
+                    type="number"
+                  />
+
+                  <Field
+                    label="Giá mua (đ)"
+                    value={
+                      form.purchasePrice
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "purchasePrice",
+                        value
+                      )
+                    }
+                    placeholder="Ví dụ: 1200000"
+                    type="number"
+                  />
+
+                  <div className="md:col-span-2">
+
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Trạng thái
+                    </label>
+
+                    <select
+                      value={
+                        form.status
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateForm(
+                          "status",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+                    >
+
+                      {Object.entries(
+                        statusLabels
+                      ).map(
+                        ([
+                          value,
+                          label,
+                        ]) => (
+                          <option
+                            key={
+                              value
+                            }
+                            value={
+                              value
+                            }
+                          >
+                            {
+                              label
+                            }
+                          </option>
+                        )
+                      )}
+
+                    </select>
+
+                  </div>
+
+                  <div className="md:col-span-2">
+
+                    <Field
+                      label="🧬 Gene"
+                      value={
+                        form.genetics
+                      }
+                      onChange={(
+                        value
+                      ) =>
+                        updateForm(
+                          "genetics",
+                          value
+                        )
+                      }
+                      placeholder="Ví dụ: Albino het Clown"
+                    />
+
+                  </div>
+
+                </div>
+
+              </section>
+
+              {/* PHẢ HỆ */}
+
+              <section className="mt-8">
+
+                <SectionTitle>
+                  🧬 Nguồn gốc & phả hệ
+                </SectionTitle>
+
+                <div className="grid gap-5 md:grid-cols-2">
+
+                  {/* BỐ */}
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      👨 Bố
+                    </label>
+
+                    <select
+                      value={
+                        form.fatherId
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateForm(
+                          "fatherId",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+                    >
+
+                      <option value="">
+                        — Không xác định —
+                      </option>
+
+                      {maleAnimals
+                        .filter(
+                          (animal) =>
+                            animal.id !==
+                              editingAnimal?.id &&
+                            animal.species?.name ===
+                              form.species
+                        )
+                        .map(
+                          (
+                            animal
+                          ) => (
+                            <option
+                              key={
+                                animal.id
+                              }
+                              value={
+                                animal.id
+                              }
+                            >
+                              {
+                                animal.name
+                              }{" "}
+                              (
+                              {
+                                animal.code
+                              }
+                              )
+                              {animal.genetics
+                                ? ` — ${animal.genetics}`
+                                : ""}
+                            </option>
+                          )
+                        )}
+
+                    </select>
+
+                  </div>
+
+                  {/* MẸ */}
+
+                  <div>
+
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      👩 Mẹ
+                    </label>
+
+                    <select
+                      value={
+                        form.motherId
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateForm(
+                          "motherId",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+                    >
+
+                      <option value="">
+                        — Không xác định —
+                      </option>
+
+                      {femaleAnimals
+                        .filter(
+                          (animal) =>
+                            animal.id !==
+                              editingAnimal?.id &&
+                            animal.species?.name ===
+                              form.species
+                        )
+                        .map(
+                          (
+                            animal
+                          ) => (
+                            <option
+                              key={
+                                animal.id
+                              }
+                              value={
+                                animal.id
+                              }
+                            >
+                              {
+                                animal.name
+                              }{" "}
+                              (
+                              {
+                                animal.code
+                              }
+                              )
+                              {animal.genetics
+                                ? ` — ${animal.genetics}`
+                                : ""}
+                            </option>
+                          )
+                        )}
+
+                    </select>
+
+                  </div>
+
+                  {/* LẦN PHỐI */}
+
+                  <div className="md:col-span-2">
+
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      🥚 Sinh ra từ lần phối
+                    </label>
+
+                    <select
+                      value={
+                        form.sourceBreedingId
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateForm(
+                          "sourceBreedingId",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
+                    >
+
+                      <option value="">
+                        — Không xác định —
+                      </option>
+
+                      {breedings.map(
+                        (
+                          breeding
+                        ) => (
+                          <option
+                            key={
+                              breeding.id
+                            }
+                            value={
+                              breeding.id
+                            }
+                          >
+                            {
+                              getBreedingTitle(
+                                breeding
+                              )
+                            }{" "}
+                            —{" "}
+                            {
+                              breedingStatusLabels[
+                                breeding.status
+                              ] ||
+                                breeding.status
+                            }
+                            {breeding.pairingDate
+                              ? ` — ${formatDate(
+                                  breeding.pairingDate
+                                )}`
+                              : ""}
+                          </option>
+                        )
+                      )}
+
+                    </select>
+
+                    <p className="mt-2 text-xs text-slate-400">
+                      Dùng mục này nếu cá thể được sinh ra từ một lần phối đã ghi nhận trong hệ thống.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </section>
+
+              {/* ẢNH */}
+
+              <section className="mt-8">
+
+                <SectionTitle>
+                  📷 Ảnh cá thể
+                </SectionTitle>
+
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+
+                  {editingAnimal &&
+                    editingAnimal.images &&
+                    editingAnimal.images.length >
+                      0 && (
+
+                      <div className="mb-5">
+
+                        <p className="mb-3 text-sm font-semibold text-slate-700">
+                          Ảnh đã lưu
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+
+                          {editingAnimal.images.map(
+                            (
+                              image
+                            ) => (
+                              <div
+                                key={
+                                  image.id
+                                }
+                                className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white"
+                              >
+
+                                <div className="aspect-square">
+
+                                  <img
+                                    src={
+                                      image.url
+                                    }
+                                    alt={
+                                      image.caption ||
+                                      editingAnimal.name
+                                    }
+                                    className="h-full w-full object-cover"
+                                  />
+
+                                </div>
+
+                                {image.isPrimary && (
+                                  <div className="absolute left-2 top-2 rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white shadow">
+                                    ⭐ Ảnh chính
+                                  </div>
+                                )}
+
+                                <div className="absolute inset-x-0 bottom-0 flex gap-2 bg-gradient-to-t from-black/70 to-transparent p-2 pt-8 opacity-0 transition group-hover:opacity-100">
+
+                                  {!image.isPrimary && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setPrimaryImage(
+                                          editingAnimal,
+                                          image.id
+                                        )
+                                      }
+                                      className="flex-1 rounded-lg bg-white px-2 py-2 text-xs font-semibold text-emerald-700"
+                                    >
+                                      ⭐ Đặt chính
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      deleteImage(
+                                        editingAnimal,
+                                        image
+                                      )
+                                    }
+                                    className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-600"
+                                  >
+                                    🗑️
+                                  </button>
+
+                                </div>
+
+                              </div>
+                            )
+                          )}
+
+                        </div>
+
+                      </div>
+                    )}
+
+                  {previewUrls.length >
+                    0 && (
+
+                    <div className="mb-5">
+
+                      <p className="mb-3 text-sm font-semibold text-slate-700">
+                        Ảnh chuẩn bị tải lên
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+
+                        {previewUrls.map(
+                          (
+                            url,
+                            index
+                          ) => (
+                            <div
+                              key={
+                                url
+                              }
+                              className="relative overflow-hidden rounded-xl border border-emerald-200 bg-white"
+                            >
+
+                              <div className="aspect-square">
+
+                                <img
+                                  src={
+                                    url
+                                  }
+                                  alt={`Ảnh mới ${
+                                    index +
+                                    1
+                                  }`}
+                                  className="h-full w-full object-cover"
+                                />
+
+                              </div>
+
+                              <div className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-1 text-xs font-semibold text-white">
+                                Mới
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeSelectedFile(
+                                    index
+                                  )
+                                }
+                                className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-red-600 shadow"
+                              >
+                                ×
+                              </button>
+
+                            </div>
+                          )
+                        )}
+
+                      </div>
+
+                    </div>
+                  )}
+
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-8 text-center">
+
+                    <div className="text-4xl">
+                      📷
+                    </div>
+
+                    <p className="mt-3 font-semibold text-slate-800">
+                      Thêm ảnh của cá thể
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      JPG, PNG, WEBP hoặc GIF · tối đa 10MB / ảnh
+                    </p>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        fileInputRef.current?.click()
+                      }
+                      className="mt-4 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"
+                    >
+                      + Chọn ảnh từ máy
+                    </button>
+
+                    <input
+                      ref={
+                        fileInputRef
+                      }
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      multiple
+                      onChange={
+                        handleFileSelect
+                      }
+                      className="hidden"
+                    />
+
+                  </div>
+
+                  <p className="mt-3 text-xs text-slate-400">
+                    {editingAnimal
+                      ? "Ảnh sẽ được lưu ngay sau khi bạn bấm “Lưu thay đổi”."
+                      : "Ảnh sẽ được lưu sau khi bạn tạo cá thể."}
+                  </p>
+
+                </div>
+
+              </section>
+
+              {/* GHI CHÚ */}
+
+              <section className="mt-8">
+
+                <SectionTitle>
+                  📝 Ghi chú
+                </SectionTitle>
+
+                <textarea
+                  rows={4}
+                  value={
+                    form.notes
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    updateForm(
+                      "notes",
+                      event.target
+                        .value
+                    )
+                  }
+                  placeholder="Ví dụ: tính cách, đặc điểm nhận dạng, tình trạng sức khỏe..."
+                  className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                />
+
+              </section>
+
+              {/* FOOTER */}
+
+              <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
+
+                <div>
+
+                  {editingAnimal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        deleteAnimal(
+                          editingAnimal
+                        );
+                        closeForm();
+                      }}
+                      disabled={
+                        saving
+                      }
+                      className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      🗑️ Xóa cá thể
+                    </button>
+                  )}
+
+                </div>
+
+                <div className="flex gap-3">
+
+                  <button
+                    type="button"
+                    onClick={
+                      closeForm
+                    }
+                    disabled={
+                      saving ||
+                      uploadingImages
+                    }
+                    className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Hủy
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={
+                      saving ||
+                      uploadingImages
+                    }
+                    className="rounded-xl bg-emerald-600 px-7 py-3 font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving
+                      ? uploadingImages
+                        ? "Đang tải ảnh..."
+                        : "Đang lưu..."
+                      : editingAnimal
+                      ? "Lưu thay đổi"
+                      : "Thêm cá thể"}
+                  </button>
+
+                </div>
+
+              </div>
+
+            </form>
+
+          </div>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+// ==================================================
+// SECTION TITLE
+// ==================================================
+
+function SectionTitle({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <h3 className="mb-4 border-b border-slate-100 pb-3 text-lg font-bold text-slate-900">
+      {children}
+    </h3>
+  );
+}
+
+// ==================================================
+// FIELD
+// ==================================================
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (
+    value: string
+  ) => void;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <div>
+
+      <label className="mb-2 block text-sm font-semibold text-slate-700">
+        {label}
+      </label>
+
+      <input
+        type={type}
+        value={value}
+        onChange={(event) =>
+          onChange(
+            event.target.value
+          )
+        }
+        placeholder={
+          placeholder
+        }
+        min={
+          type === "number"
+            ? "0"
+            : undefined
+        }
+        className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+      />
+
+    </div>
+  );
+}
+
+// ==================================================
+// INFO ROW
+// ==================================================
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+
+      <span className="shrink-0 text-slate-500">
+        {label}
+      </span>
+
+      <span className="text-right font-medium text-slate-800">
+        {value}
+      </span>
+
+    </div>
+  );
+}

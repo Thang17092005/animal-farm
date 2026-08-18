@@ -1,0 +1,223 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Animal {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  name            String
+  speciesId       String
+  morphId         String?
+  sex             Sex           @default(UNKNOWN)
+  birthDate       DateTime?
+  purchaseDate    DateTime?
+  purchasePrice   Decimal?      @db.Decimal(15, 2)
+  saleDate        DateTime?
+  salePrice       Decimal?      @db.Decimal(15, 2)
+  status          AnimalStatus  @default(HEALTHY)
+  weight          Decimal?      @db.Decimal(10, 2)
+  genetics        String?
+  notes           String?
+  fatherId        String?
+  motherId        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  father          Animal?       @relation("Father", fields: [fatherId], references: [id])
+  fatherChildren  Animal[]      @relation("Father")
+  morph           Morph?        @relation(fields: [morphId], references: [id])
+  mother          Animal?       @relation("Mother", fields: [motherId], references: [id])
+  motherChildren  Animal[]      @relation("Mother")
+  species         Species       @relation(fields: [speciesId], references: [id])
+  images          AnimalImage[]
+  femaleBreedings Breeding[]    @relation("FemaleAnimal")
+  maleBreedings   Breeding[]    @relation("MaleAnimal")
+  offspring       Offspring[]
+  transactions    Transaction[]
+
+  @@index([speciesId])
+  @@index([morphId])
+  @@index([sex])
+  @@index([status])
+  @@index([fatherId])
+  @@index([motherId])
+}
+
+model Species {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  scientificName String?
+  description    String?
+  imageUrl       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  animals        Animal[]
+  morphs         Morph[]
+}
+
+model Morph {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  genetics    String?
+  imageUrl    String?
+  speciesId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  animals     Animal[]
+  species     Species  @relation(fields: [speciesId], references: [id])
+
+  @@unique([speciesId, name])
+  @@index([speciesId])
+}
+
+model AnimalImage {
+  id        String   @id @default(cuid())
+  url       String
+  publicId  String?
+  caption   String?
+  isPrimary Boolean  @default(false)
+  animalId  String
+  createdAt DateTime @default(now())
+  animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  @@index([animalId])
+}
+
+model Breeding {
+  id              String         @id @default(cuid())
+  maleId          String?
+  femaleId        String
+  startDate       DateTime?
+  pairingDate     DateTime?
+  expectedDate    DateTime?
+  layingDate      DateTime?
+  status          BreedingStatus @default(PLANNED)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  eggCount        Int?
+  offspringDead   Int?
+  offspringFemale Int?
+  offspringMale   Int?
+  offspringTotal  Int?
+  breedingType    BreedingType   @default(SAME_SPECIES)
+  female          Animal         @relation("FemaleAnimal", fields: [femaleId], references: [id])
+  male            Animal?        @relation("MaleAnimal", fields: [maleId], references: [id])
+  eggs            Egg[]
+  offspring       Offspring[]
+
+  @@index([maleId])
+  @@index([femaleId])
+  @@index([status])
+  @@index([breedingType])
+}
+
+model Egg {
+  id             String    @id @default(cuid())
+  code           String
+  breedingId     String
+  layingDate     DateTime?
+  incubationDate DateTime?
+  hatchDate      DateTime?
+  status         EggStatus @default(INCUBATING)
+  temperature    Decimal?  @db.Decimal(5, 2)
+  humidity       Decimal?  @db.Decimal(5, 2)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  breeding       Breeding  @relation(fields: [breedingId], references: [id], onDelete: Cascade)
+
+  @@unique([breedingId, code])
+  @@index([breedingId])
+  @@index([status])
+}
+
+model Offspring {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  name       String?
+  breedingId String?
+  animalId   String?
+  hatchDate  DateTime?
+  sex        Sex       @default(UNKNOWN)
+  weight     Decimal?  @db.Decimal(10, 2)
+  morph      String?
+  genetics   String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  animal     Animal?   @relation(fields: [animalId], references: [id])
+  breeding   Breeding? @relation(fields: [breedingId], references: [id])
+
+  @@index([breedingId])
+  @@index([animalId])
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  animalId    String?
+  amount      Decimal         @db.Decimal(15, 2)
+  date        DateTime        @default(now())
+  description String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  animal      Animal?         @relation(fields: [animalId], references: [id])
+
+  @@index([animalId])
+  @@index([type])
+  @@index([date])
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  UNKNOWN
+}
+
+enum AnimalStatus {
+  HEALTHY
+  SICK
+  BREEDING
+  SOLD
+  DECEASED
+  OTHER
+}
+
+enum TransactionType {
+  PURCHASE
+  SALE
+  FEED
+  MEDICAL
+  EQUIPMENT
+  SHIPPING
+  OTHER
+}
+
+enum BreedingStatus {
+  PLANNED
+  PAIRING
+  PREGNANT
+  LAID_EGGS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum BreedingType {
+  SAME_SPECIES
+  CROSSBREED
+}
+
+enum EggStatus {
+  INCUBATING
+  HATCHED
+  FAILED
+  DAMAGED
+  OTHER
+}

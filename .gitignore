@@ -1,0 +1,18 @@
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+/app/generated/prisma
+
+# Supabase local temporary files
+supabase/.temp/
+
+# Database backups
+*.sql
+
+.next/
