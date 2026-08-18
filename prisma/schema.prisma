@@ -26,17 +26,26 @@ model Animal {
   motherId        String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
   father          Animal?       @relation("Father", fields: [fatherId], references: [id])
   fatherChildren  Animal[]      @relation("Father")
+
   morph           Morph?        @relation(fields: [morphId], references: [id])
+
   mother          Animal?       @relation("Mother", fields: [motherId], references: [id])
   motherChildren  Animal[]      @relation("Mother")
+
   species         Species       @relation(fields: [speciesId], references: [id])
+
   images          AnimalImage[]
+
   femaleBreedings Breeding[]    @relation("FemaleAnimal")
   maleBreedings   Breeding[]    @relation("MaleAnimal")
+
   offspring       Offspring[]
   transactions    Transaction[]
+
+  feedings        Feeding[]
 
   @@index([speciesId])
   @@index([morphId])
@@ -54,6 +63,7 @@ model Species {
   imageUrl       String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
   animals        Animal[]
   morphs         Morph[]
 }
@@ -67,7 +77,9 @@ model Morph {
   speciesId   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
   animals     Animal[]
+
   species     Species  @relation(fields: [speciesId], references: [id])
 
   @@unique([speciesId, name])
@@ -82,6 +94,7 @@ model AnimalImage {
   isPrimary Boolean  @default(false)
   animalId  String
   createdAt DateTime @default(now())
+
   animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([animalId])
@@ -105,8 +118,10 @@ model Breeding {
   offspringMale   Int?
   offspringTotal  Int?
   breedingType    BreedingType   @default(SAME_SPECIES)
+
   female          Animal         @relation("FemaleAnimal", fields: [femaleId], references: [id])
   male            Animal?        @relation("MaleAnimal", fields: [maleId], references: [id])
+
   eggs            Egg[]
   offspring       Offspring[]
 
@@ -129,6 +144,7 @@ model Egg {
   notes          String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
   breeding       Breeding  @relation(fields: [breedingId], references: [id], onDelete: Cascade)
 
   @@unique([breedingId, code])
@@ -150,6 +166,7 @@ model Offspring {
   notes      String?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+
   animal     Animal?   @relation(fields: [animalId], references: [id])
   breeding   Breeding? @relation(fields: [breedingId], references: [id])
 
@@ -167,11 +184,31 @@ model Transaction {
   notes       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
   animal      Animal?         @relation(fields: [animalId], references: [id])
 
   @@index([animalId])
   @@index([type])
   @@index([date])
+}
+
+model Feeding {
+  id        String   @id @default(cuid())
+  animalId  String
+  date      DateTime
+  time      String
+  food      String
+  amount    String?
+  note      String?
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  @@index([animalId])
+  @@index([date])
+  @@index([completed])
 }
 
 enum Sex {

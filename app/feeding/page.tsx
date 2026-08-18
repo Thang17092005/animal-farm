@@ -7,13 +7,15 @@ type Animal = {
   code: string;
   name: string;
   sex: "MALE" | "FEMALE" | "UNKNOWN";
-  genetics?: string | null;S
+  genetics?: string | null;
 
   species?: {
+    id?: string;
     name: string;
   } | null;
 
   morph?: {
+    id?: string;
     name: string;
   } | null;
 };
@@ -29,8 +31,6 @@ type FeedingRecord = {
   completed: boolean;
 };
 
-const STORAGE_KEY = "animal-farm-feeding";
-
 function getToday() {
   const date = new Date();
 
@@ -45,9 +45,7 @@ function getToday() {
   return `${year}-${month}-${day}`;
 }
 
-function formatDate(
-  value: string
-) {
+function formatDate(value: string) {
   if (!value) {
     return "—";
   }
@@ -60,9 +58,33 @@ function formatDate(
     return "—";
   }
 
-  return date.toLocaleDateString(
-    "vi-VN"
-  );
+  return date.toLocaleDateString("vi-VN");
+}
+
+function normalizeDate(value: string) {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function getAnimal(
@@ -135,12 +157,6 @@ function getAnimalInfo(
   return parts.join(" • ");
 }
 
-function createId() {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
-}
-
 export default function FeedingPage() {
   const [animals, setAnimals] =
     useState<Animal[]>([]);
@@ -154,15 +170,18 @@ export default function FeedingPage() {
   const [error, setError] =
     useState("");
 
-  // =========================
+  // ==================================================
   // FORM
-  // =========================
+  // ==================================================
 
   const [showForm, setShowForm] =
     useState(false);
 
   const [editingId, setEditingId] =
     useState<string | null>(null);
+
+  const [speciesId, setSpeciesId] =
+    useState("");
 
   const [animalId, setAnimalId] =
     useState("");
@@ -182,16 +201,22 @@ export default function FeedingPage() {
   const [note, setNote] =
     useState("");
 
-  // =========================
+  const [saving, setSaving] =
+    useState(false);
+
+  // ==================================================
   // LỊCH
-  // =========================
+  // ==================================================
 
   const [selectedDate, setSelectedDate] =
     useState(getToday());
 
-  // =========================
+  // ==================================================
   // LỊCH SỬ
-  // =========================
+  // ==================================================
+
+  const [historySpeciesId, setHistorySpeciesId] =
+    useState("");
 
   const [historyAnimalId, setHistoryAnimalId] =
     useState("");
@@ -202,25 +227,93 @@ export default function FeedingPage() {
   const [historyTo, setHistoryTo] =
     useState("");
 
-  // =========================
-  // LOAD
-  // =========================
+  // ==================================================
+  // DANH SÁCH LOÀI
+  // ==================================================
+
+  const speciesList = useMemo(() => {
+    const names = new Set<string>();
+
+    animals.forEach((animal) => {
+      const name =
+        animal.species?.name;
+
+      if (name) {
+        names.add(name);
+      }
+    });
+
+    return Array.from(names).sort(
+      (a, b) =>
+        a.localeCompare(
+          b,
+          "vi"
+        )
+    );
+  }, [animals]);
+
+  // ==================================================
+  // CON VẬT THEO LOÀI
+  // ==================================================
+
+  const filteredAnimals = useMemo(() => {
+    if (!speciesId) {
+      return animals;
+    }
+
+    return animals.filter(
+      (animal) =>
+        animal.species?.name ===
+        speciesId
+    );
+  }, [
+    animals,
+    speciesId,
+  ]);
+
+  // ==================================================
+  // CON VẬT TRONG LỊCH SỬ
+  // ==================================================
+
+  const filteredHistoryAnimals =
+    useMemo(() => {
+      if (!historySpeciesId) {
+        return animals;
+      }
+
+      return animals.filter(
+        (animal) =>
+          animal.species?.name ===
+          historySpeciesId
+      );
+    }, [
+      animals,
+      historySpeciesId,
+    ]);
+
+  // ==================================================
+  // LOAD ANIMALS
+  // ==================================================
 
   async function loadAnimals() {
     try {
       const response =
-        await fetch("/api/animals", {
-          cache: "no-store",
-        });
-
-      if (!response.ok) {
-        throw new Error(
-          "Không thể tải danh sách động vật."
+        await fetch(
+          "/api/animals",
+          {
+            cache: "no-store",
+          }
         );
-      }
 
       const data =
         await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Không thể tải danh sách động vật."
+        );
+      }
 
       setAnimals(
         Array.isArray(data)
@@ -238,63 +331,107 @@ export default function FeedingPage() {
     }
   }
 
-  useEffect(() => {
+  // ==================================================
+  // LOAD FEEDINGS
+  // ==================================================
+
+  async function loadFeedings() {
     try {
-      const saved =
-        localStorage.getItem(
-          STORAGE_KEY
+      const response =
+        await fetch(
+          "/api/feedings",
+          {
+            cache: "no-store",
+          }
         );
 
-      if (saved) {
-        const parsed =
-          JSON.parse(saved);
+      const data =
+        await response.json();
 
-        if (
-          Array.isArray(parsed)
-        ) {
-          setRecords(parsed);
-        }
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Không thể tải lịch cho ăn."
+        );
       }
+
+      const normalized: FeedingRecord[] =
+        Array.isArray(data)
+          ? data.map(
+              (item: any) => ({
+                id: item.id,
+                animalId:
+                  item.animalId,
+                date:
+                  normalizeDate(
+                    item.date
+                  ),
+                time:
+                  item.time ||
+                  "00:00",
+                food:
+                  item.food ||
+                  "",
+                amount:
+                  item.amount ||
+                  "",
+                note:
+                  item.note ||
+                  "",
+                completed:
+                  Boolean(
+                    item.completed
+                  ),
+              })
+            )
+          : [];
+
+      setRecords(normalized);
     } catch (err) {
-      console.error(
-        "Không thể đọc lịch cho ăn:",
-        err
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Không thể tải lịch cho ăn."
       );
     }
+  }
 
-    loadAnimals().finally(() => {
-      setLoading(false);
-    });
-  }, []);
+  // ==================================================
+  // LOAD BAN ĐẦU
+  // ==================================================
 
   useEffect(() => {
-    if (loading) {
-      return;
+    async function loadData() {
+      setLoading(true);
+      setError("");
+
+      await Promise.all([
+        loadAnimals(),
+        loadFeedings(),
+      ]);
+
+      setLoading(false);
     }
 
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(records)
-      );
-    } catch (err) {
-      console.error(
-        "Không thể lưu lịch cho ăn:",
-        err
-      );
-    }
-  }, [records, loading]);
+    loadData();
+  }, []);
 
-  // =========================
+  // ==================================================
   // RESET FORM
-  // =========================
+  // ==================================================
 
   function resetForm() {
     setEditingId(null);
+    setSpeciesId("");
     setAnimalId("");
+
     setDate(
-      selectedDate || getToday()
+      selectedDate ||
+        getToday()
     );
+
     setTime("18:00");
     setFood("");
     setAmount("");
@@ -302,56 +439,108 @@ export default function FeedingPage() {
     setError("");
   }
 
-  // =========================
+  // ==================================================
   // THÊM
-  // =========================
+  // ==================================================
 
   function openAddForm() {
     resetForm();
     setShowForm(true);
   }
 
-  // =========================
+  // ==================================================
   // SỬA
-  // =========================
+  // ==================================================
 
   function openEditForm(
     record: FeedingRecord
   ) {
+    const animal =
+      getAnimal(
+        animals,
+        record.animalId
+      );
+
     setEditingId(record.id);
-    setAnimalId(record.animalId);
+
+    setAnimalId(
+      record.animalId
+    );
+
+    setSpeciesId(
+      animal?.species?.name ||
+        ""
+    );
+
     setDate(record.date);
     setTime(record.time);
     setFood(record.food);
     setAmount(record.amount);
     setNote(record.note);
     setError("");
+
     setShowForm(true);
   }
 
-  // =========================
-  // ĐÓNG
-  // =========================
+  // ==================================================
+  // ĐÓNG FORM
+  // ==================================================
 
   function closeForm() {
+    if (saving) {
+      return;
+    }
+
     setShowForm(false);
     resetForm();
   }
 
-  // =========================
+  // ==================================================
   // LƯU
-  // =========================
+  // ==================================================
 
-  function handleSubmit(
+  async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
     setError("");
 
+    if (!speciesId) {
+      setError(
+        "Bạn cần chọn loài."
+      );
+      return;
+    }
+
     if (!animalId) {
       setError(
         "Bạn cần chọn con vật."
+      );
+      return;
+    }
+
+    const selectedAnimal =
+      getAnimal(
+        animals,
+        animalId
+      );
+
+    if (
+      !selectedAnimal
+    ) {
+      setError(
+        "Không tìm thấy con vật."
+      );
+      return;
+    }
+
+    if (
+      selectedAnimal.species
+        ?.name !== speciesId
+    ) {
+      setError(
+        "Con vật không thuộc loài đang chọn."
       );
       return;
     }
@@ -377,106 +566,238 @@ export default function FeedingPage() {
       return;
     }
 
-    if (editingId) {
-      setRecords((current) =>
-        current.map((record) =>
-          record.id === editingId
-            ? {
-                ...record,
-                animalId,
-                date,
-                time,
-                food:
-                  food.trim(),
-                amount:
-                  amount.trim(),
-                note:
-                  note.trim(),
-              }
-            : record
-        )
-      );
-    } else {
-      const newRecord: FeedingRecord =
-        {
-          id: createId(),
-          animalId,
-          date,
-          time,
-          food: food.trim(),
-          amount: amount.trim(),
-          note: note.trim(),
-          completed: false,
-        };
+    try {
+      setSaving(true);
 
-      setRecords((current) => [
-        ...current,
-        newRecord,
-      ]);
+      const payload = {
+        animalId,
+        date,
+        time,
+        food: food.trim(),
+        amount:
+          amount.trim() ||
+          null,
+        note:
+          note.trim() ||
+          null,
+        completed:
+          editingId
+            ? records.find(
+                (record) =>
+                  record.id ===
+                  editingId
+              )?.completed ||
+              false
+            : false,
+      };
+
+      const response =
+        await fetch(
+          editingId
+            ? `/api/feedings/${editingId}`
+            : "/api/feedings",
+          {
+            method:
+              editingId
+                ? "PUT"
+                : "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify(
+              payload
+            ),
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Không thể lưu lịch cho ăn."
+        );
+      }
+
+      await loadFeedings();
+
+      setShowForm(false);
+      resetForm();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Không thể lưu lịch cho ăn."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ==================================================
+  // ĐÁNH DẤU ĐÃ CHO ĂN
+  // ==================================================
+
+  async function toggleCompleted(
+    id: string
+  ) {
+    const record =
+      records.find(
+        (item) =>
+          item.id === id
+      );
+
+    if (!record) {
+      return;
     }
 
-    setShowForm(false);
-    resetForm();
-  }
+    try {
+      setError("");
 
-  // =========================
-  // ĐÁNH DẤU ĐÃ CHO ĂN
-  // =========================
+      const response =
+        await fetch(
+          `/api/feedings/${id}`,
+          {
+            method: "PUT",
 
-  function toggleCompleted(
-    id: string
-  ) {
-    setRecords((current) =>
-      current.map((record) =>
-        record.id === id
-          ? {
-              ...record,
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              animalId:
+                record.animalId,
+              date:
+                record.date,
+              time:
+                record.time,
+              food:
+                record.food,
+              amount:
+                record.amount ||
+                null,
+              note:
+                record.note ||
+                null,
               completed:
                 !record.completed,
-            }
-          : record
-      )
-    );
+            }),
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Không thể cập nhật trạng thái."
+        );
+      }
+
+      await loadFeedings();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Không thể cập nhật trạng thái."
+      );
+    }
   }
 
-  // =========================
+  // ==================================================
   // XÓA
-  // =========================
+  // ==================================================
 
-  function deleteRecord(
+  async function deleteRecord(
     id: string
   ) {
-    setRecords((current) =>
-      current.filter(
-        (record) =>
-          record.id !== id
-      )
-    );
+    const confirmed =
+      window.confirm(
+        "Bạn có chắc muốn xóa lịch cho ăn này không?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError("");
+
+      const response =
+        await fetch(
+          `/api/feedings/${id}`,
+          {
+            method: "DELETE",
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error ||
+            "Không thể xóa lịch cho ăn."
+        );
+      }
+
+      if (
+        editingId === id
+      ) {
+        setShowForm(false);
+        resetForm();
+      }
+
+      await loadFeedings();
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Không thể xóa lịch cho ăn."
+      );
+    }
   }
 
-  // =========================
+  // ==================================================
   // LỊCH HÔM NAY
-  // =========================
+  // ==================================================
 
-  const today = getToday();
+  const today =
+    getToday();
 
   const todayRecords =
     useMemo(() => {
       return records
         .filter(
           (record) =>
-            record.date === today
+            record.date ===
+            today
         )
         .sort((a, b) =>
           a.time.localeCompare(
             b.time
           )
         );
-    }, [records, today]);
+    }, [
+      records,
+      today,
+    ]);
 
-  // =========================
+  // ==================================================
   // NGÀY ĐANG CHỌN
-  // =========================
+  // ==================================================
 
   const selectedRecords =
     useMemo(() => {
@@ -496,9 +817,9 @@ export default function FeedingPage() {
       selectedDate,
     ]);
 
-  // =========================
+  // ==================================================
   // LỊCH SẮP TỚI
-  // =========================
+  // ==================================================
 
   const upcomingRecords =
     useMemo(() => {
@@ -506,7 +827,7 @@ export default function FeedingPage() {
         .filter(
           (record) =>
             `${record.date} ${record.time}` >=
-            `${today} 00:00` &&
+              `${today} 00:00` &&
             !record.completed
         )
         .sort((a, b) => {
@@ -521,11 +842,14 @@ export default function FeedingPage() {
           );
         })
         .slice(0, 8);
-    }, [records, today]);
+    }, [
+      records,
+      today,
+    ]);
 
-  // =========================
+  // ==================================================
   // LỊCH SỬ
-  // =========================
+  // ==================================================
 
   const historyRecords =
     useMemo(() => {
@@ -560,6 +884,24 @@ export default function FeedingPage() {
               return false;
             }
 
+            if (
+              historySpeciesId
+            ) {
+              const animal =
+                getAnimal(
+                  animals,
+                  record.animalId
+                );
+
+              if (
+                animal?.species
+                  ?.name !==
+                historySpeciesId
+              ) {
+                return false;
+              }
+            }
+
             return true;
           }
         )
@@ -576,14 +918,16 @@ export default function FeedingPage() {
         });
     }, [
       records,
+      animals,
+      historySpeciesId,
       historyAnimalId,
       historyFrom,
       historyTo,
     ]);
 
-  // =========================
+  // ==================================================
   // THỐNG KÊ
-  // =========================
+  // ==================================================
 
   const completedToday =
     todayRecords.filter(
@@ -604,24 +948,20 @@ export default function FeedingPage() {
     ).length;
 
   const thisMonthHistory =
-    records.filter((record) => {
-      if (!record.completed) {
-        return false;
-      }
-
-      return (
+    records.filter(
+      (record) =>
+        record.completed &&
         record.date.startsWith(
           today.slice(0, 7)
         )
-      );
-    }).length;
+    ).length;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* HEADER */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
@@ -651,9 +991,9 @@ export default function FeedingPage() {
 
       </div>
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* ERROR */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       {error && (
         <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -661,9 +1001,9 @@ export default function FeedingPage() {
         </div>
       )}
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* STATS */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
 
@@ -709,9 +1049,9 @@ export default function FeedingPage() {
 
       </div>
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* LỊCH HÔM NAY */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
 
@@ -741,8 +1081,12 @@ export default function FeedingPage() {
 
         </div>
 
-        {todayRecords.length ===
-        0 ? (
+        {loading ? (
+          <div className="p-10 text-center text-slate-500">
+            Đang tải dữ liệu...
+          </div>
+        ) : todayRecords.length ===
+          0 ? (
           <EmptyState
             icon="🍽️"
             title="Hôm nay chưa có lịch cho ăn"
@@ -781,9 +1125,9 @@ export default function FeedingPage() {
 
       </section>
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* LỊCH SẮP TỚI */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
 
@@ -839,9 +1183,9 @@ export default function FeedingPage() {
 
       </section>
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* XEM THEO NGÀY */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
@@ -926,9 +1270,9 @@ export default function FeedingPage() {
 
       </section>
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* LỊCH SỬ */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
 
@@ -954,9 +1298,55 @@ export default function FeedingPage() {
 
           {/* BỘ LỌC */}
 
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-4 md:grid-cols-4">
 
             <div>
+
+              <label className="mb-2 block text-sm font-semibold text-slate-700">
+                Loài
+              </label>
+
+              <select
+                value={
+                  historySpeciesId
+                }
+                onChange={(event) => {
+                  setHistorySpeciesId(
+                    event.target.value
+                  );
+
+                  setHistoryAnimalId(
+                    ""
+                  );
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+              >
+
+                <option value="">
+                  Tất cả loài
+                </option>
+
+                {speciesList.map(
+                  (species) => (
+                    <option
+                      key={
+                        species
+                      }
+                      value={
+                        species
+                      }
+                    >
+                      {species}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+            </div>
+
+            <div>
+
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Con vật
               </label>
@@ -967,17 +1357,17 @@ export default function FeedingPage() {
                 }
                 onChange={(event) =>
                   setHistoryAnimalId(
-                    event.target
-                      .value
+                    event.target.value
                   )
                 }
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               >
+
                 <option value="">
                   Tất cả con vật
                 </option>
 
-                {animals.map(
+                {filteredHistoryAnimals.map(
                   (animal) => (
                     <option
                       key={
@@ -996,9 +1386,11 @@ export default function FeedingPage() {
                 )}
 
               </select>
+
             </div>
 
             <div>
+
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Từ ngày
               </label>
@@ -1010,15 +1402,16 @@ export default function FeedingPage() {
                 }
                 onChange={(event) =>
                   setHistoryFrom(
-                    event.target
-                      .value
+                    event.target.value
                   )
                 }
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
+
             </div>
 
             <div>
+
               <label className="mb-2 block text-sm font-semibold text-slate-700">
                 Đến ngày
               </label>
@@ -1030,24 +1423,26 @@ export default function FeedingPage() {
                 }
                 onChange={(event) =>
                   setHistoryTo(
-                    event.target
-                      .value
+                    event.target.value
                   )
                 }
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
               />
+
             </div>
 
           </div>
 
-          {/* XÓA BỘ LỌC */}
-
-          {(historyAnimalId ||
+          {(historySpeciesId ||
+            historyAnimalId ||
             historyFrom ||
             historyTo) && (
             <button
               type="button"
               onClick={() => {
+                setHistorySpeciesId(
+                  ""
+                );
                 setHistoryAnimalId(
                   ""
                 );
@@ -1066,8 +1461,6 @@ export default function FeedingPage() {
 
         </div>
 
-        {/* DANH SÁCH LỊCH SỬ */}
-
         {loading ? (
           <div className="p-10 text-center text-slate-500">
             Đang tải dữ liệu...
@@ -1085,6 +1478,7 @@ export default function FeedingPage() {
             <table className="w-full min-w-[850px]">
 
               <thead>
+
                 <tr className="border-b border-slate-100 bg-slate-50 text-left text-sm text-slate-500">
 
                   <th className="px-5 py-4 font-semibold">
@@ -1112,6 +1506,7 @@ export default function FeedingPage() {
                   </th>
 
                 </tr>
+
               </thead>
 
               <tbody>
@@ -1233,9 +1628,9 @@ export default function FeedingPage() {
 
       </section>
 
-      {/* ========================= */}
+      {/* ================================================== */}
       {/* MODAL */}
-      {/* ========================= */}
+      {/* ================================================== */}
 
       {showForm && (
         <div
@@ -1255,6 +1650,7 @@ export default function FeedingPage() {
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
 
               <div>
+
                 <h2 className="text-2xl font-bold text-slate-900">
                   {editingId
                     ? "Sửa lịch cho ăn"
@@ -1264,6 +1660,7 @@ export default function FeedingPage() {
                 <p className="mt-1 text-sm text-slate-500">
                   Nhập thông tin lần cho ăn.
                 </p>
+
               </div>
 
               <button
@@ -1271,7 +1668,8 @@ export default function FeedingPage() {
                 onClick={
                   closeForm
                 }
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500 hover:bg-slate-200"
+                disabled={saving}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-xl text-slate-500 hover:bg-slate-200 disabled:opacity-50"
               >
                 ×
               </button>
@@ -1285,7 +1683,66 @@ export default function FeedingPage() {
               className="space-y-5 p-6"
             >
 
+              {/* ================================================== */}
+              {/* LOÀI */}
+              {/* ================================================== */}
+
+              <div>
+
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  Loài *
+                </label>
+
+                <select
+                  required
+                  value={
+                    speciesId
+                  }
+                  onChange={(event) => {
+                    const value =
+                      event.target.value;
+
+                    setSpeciesId(
+                      value
+                    );
+
+                    setAnimalId(
+                      ""
+                    );
+                  }}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                >
+
+                  <option value="">
+                    — Chọn loài —
+                  </option>
+
+                  {speciesList.map(
+                    (species) => (
+                      <option
+                        key={
+                          species
+                        }
+                        value={
+                          species
+                        }
+                      >
+                        {species}
+                      </option>
+                    )
+                  )}
+
+                </select>
+
+                <p className="mt-2 text-xs text-slate-400">
+                  Chọn loài trước, sau đó chọn cá thể thuộc loài đó.
+                </p>
+
+              </div>
+
+              {/* ================================================== */}
               {/* CON VẬT */}
+              {/* ================================================== */}
 
               <div>
 
@@ -1298,20 +1755,24 @@ export default function FeedingPage() {
                   value={
                     animalId
                   }
+                  disabled={
+                    !speciesId
+                  }
                   onChange={(event) =>
                     setAnimalId(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   }
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 outline-none disabled:bg-slate-100 disabled:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 >
 
                   <option value="">
-                    — Chọn con vật —
+                    {!speciesId
+                      ? "— Hãy chọn loài trước —"
+                      : "— Chọn con vật —"}
                   </option>
 
-                  {animals.map(
+                  {filteredAnimals.map(
                     (animal) => (
                       <option
                         key={
@@ -1345,7 +1806,9 @@ export default function FeedingPage() {
 
               </div>
 
-              {/* NGÀY GIỜ */}
+              {/* ================================================== */}
+              {/* NGÀY + GIỜ */}
+              {/* ================================================== */}
 
               <div className="grid gap-5 md:grid-cols-2">
 
@@ -1363,8 +1826,7 @@ export default function FeedingPage() {
                     }
                     onChange={(event) =>
                       setDate(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
@@ -1386,8 +1848,7 @@ export default function FeedingPage() {
                     }
                     onChange={(event) =>
                       setTime(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
@@ -1397,7 +1858,9 @@ export default function FeedingPage() {
 
               </div>
 
+              {/* ================================================== */}
               {/* THỨC ĂN */}
+              {/* ================================================== */}
 
               <div>
 
@@ -1413,8 +1876,7 @@ export default function FeedingPage() {
                   }
                   onChange={(event) =>
                     setFood(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   }
                   placeholder="Ví dụ: Chuột đông lạnh, dế, sâu..."
@@ -1423,7 +1885,9 @@ export default function FeedingPage() {
 
               </div>
 
+              {/* ================================================== */}
               {/* KHỐI LƯỢNG */}
+              {/* ================================================== */}
 
               <div>
 
@@ -1438,8 +1902,7 @@ export default function FeedingPage() {
                   }
                   onChange={(event) =>
                     setAmount(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   }
                   placeholder="Ví dụ: 20g, 1 con, 3 con..."
@@ -1448,7 +1911,9 @@ export default function FeedingPage() {
 
               </div>
 
+              {/* ================================================== */}
               {/* GHI CHÚ */}
+              {/* ================================================== */}
 
               <div>
 
@@ -1463,8 +1928,7 @@ export default function FeedingPage() {
                   }
                   onChange={(event) =>
                     setNote(
-                      event.target
-                        .value
+                      event.target.value
                     )
                   }
                   placeholder="Ví dụ: Ăn tốt, bỏ ăn, cần theo dõi..."
@@ -1473,45 +1937,58 @@ export default function FeedingPage() {
 
               </div>
 
+              {/* ================================================== */}
               {/* FOOTER */}
+              {/* ================================================== */}
 
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
 
                 <div>
+
                   {editingId && (
                     <button
                       type="button"
+                      disabled={
+                        saving
+                      }
                       onClick={() => {
                         deleteRecord(
                           editingId
                         );
-
-                        closeForm();
                       }}
-                      className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 font-semibold text-red-600 hover:bg-red-100"
+                      className="rounded-xl border border-red-200 bg-red-50 px-5 py-3 font-semibold text-red-600 hover:bg-red-100 disabled:opacity-50"
                     >
                       🗑️ Xóa
                     </button>
                   )}
+
                 </div>
 
                 <div className="flex gap-3">
 
                   <button
                     type="button"
+                    disabled={
+                      saving
+                    }
                     onClick={
                       closeForm
                     }
-                    className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-600 hover:bg-slate-50"
+                    className="rounded-xl border border-slate-200 px-6 py-3 font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                   >
                     Hủy
                   </button>
 
                   <button
                     type="submit"
-                    className="rounded-xl bg-emerald-600 px-7 py-3 font-semibold text-white hover:bg-emerald-700"
+                    disabled={
+                      saving
+                    }
+                    className="rounded-xl bg-emerald-600 px-7 py-3 font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {editingId
+                    {saving
+                      ? "Đang lưu..."
+                      : editingId
                       ? "Lưu thay đổi"
                       : "Thêm lịch"}
                   </button>
@@ -1630,8 +2107,6 @@ function FeedingItem({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
         <div className="flex min-w-0 items-start gap-4">
-
-          {/* CHECK */}
 
           <button
             type="button"
