@@ -121,6 +121,7 @@ type AnimalForm = {
   sex: Sex;
   weight: string;
   purchasePrice: string;
+  salePrice: string;
   status: AnimalStatus;
   genetics: string;
   fatherId: string;
@@ -136,6 +137,7 @@ const emptyForm: AnimalForm = {
   sex: "UNKNOWN",
   weight: "",
   purchasePrice: "",
+  salePrice: "",
   status: "HEALTHY",
   genetics: "",
   fatherId: "",
@@ -460,9 +462,13 @@ export default function AnimalsPage() {
   // LOAD ANIMALS
   // ============================
 
-  async function loadAnimals() {
+  async function loadAnimals(
+    showLoading = true
+  ) {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
 
       const response =
         await fetch(
@@ -495,7 +501,9 @@ export default function AnimalsPage() {
           : "Không thể tải danh sách động vật."
       );
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }
 
@@ -536,9 +544,11 @@ export default function AnimalsPage() {
     }
   }
 
-  async function loadData() {
+  async function loadData(
+    showLoading = true
+  ) {
     await Promise.all([
-      loadAnimals(),
+      loadAnimals(showLoading),
       loadBreedings(),
       loadSpecies(),
     ]);
@@ -547,6 +557,31 @@ export default function AnimalsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // ============================
+  // CẬP NHẬT DỮ LIỆU MƯỢT
+  // Khi sửa/xóa/đổi ảnh, không bật màn hình
+  // "Đang tải dữ liệu..." để danh sách không bị remount.
+  // Đồng thời giữ nguyên vị trí cuộn hiện tại.
+  // ============================
+
+  async function refreshDataSilently() {
+    const scrollY =
+      typeof window !== "undefined"
+        ? window.scrollY
+        : 0;
+
+    await loadData(false);
+
+    if (typeof window !== "undefined") {
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollY,
+          behavior: "auto",
+        });
+      });
+    }
+  }
 
   // ============================
   // FILTER
@@ -706,6 +741,16 @@ export default function AnimalsPage() {
           ? ""
           : String(
               animal.purchasePrice
+            ),
+
+      salePrice:
+        animal.salePrice ===
+            null ||
+        animal.salePrice ===
+            undefined
+          ? ""
+          : String(
+              animal.salePrice
             ),
 
       status: animal.status,
@@ -1175,7 +1220,7 @@ export default function AnimalsPage() {
         );
       }
 
-      await loadData();
+      await refreshDataSilently();
 
       const refreshed =
         await fetch(
@@ -1243,7 +1288,7 @@ export default function AnimalsPage() {
         );
       }
 
-      await loadData();
+      await refreshDataSilently();
 
       const refreshed =
         await fetch(
@@ -1365,6 +1410,9 @@ export default function AnimalsPage() {
             purchasePrice:
               form.purchasePrice.trim(),
 
+            salePrice:
+              form.salePrice.trim(),
+
             status:
               form.status,
 
@@ -1424,7 +1472,7 @@ export default function AnimalsPage() {
       setFormError("");
       resetForm();
 
-      await loadData();
+      await refreshDataSilently();
 
     } catch (error) {
       console.error(error);
@@ -1466,7 +1514,7 @@ export default function AnimalsPage() {
         );
       }
 
-      await loadData();
+      await refreshDataSilently();
     } catch (error) {
       console.error(error);
 
@@ -1696,9 +1744,7 @@ export default function AnimalsPage() {
 
             <button
               type="button"
-              onClick={
-                loadData
-              }
+              onClick={() => loadData()}
               className="text-sm font-semibold text-emerald-700 hover:underline"
             >
               Làm mới →
@@ -1876,6 +1922,13 @@ export default function AnimalsPage() {
                           label="💰 Giá mua"
                           value={formatMoney(
                             animal.purchasePrice
+                          )}
+                        />
+
+                        <InfoRow
+                          label="🏷️ Giá bán"
+                          value={formatMoney(
+                            animal.salePrice
                           )}
                         />
 
@@ -2401,6 +2454,23 @@ export default function AnimalsPage() {
                       )
                     }
                     placeholder="Ví dụ: 1200000"
+                    type="number"
+                  />
+
+                  <Field
+                    label="Giá bán (đ)"
+                    value={
+                      form.salePrice
+                    }
+                    onChange={(
+                      value
+                    ) =>
+                      updateForm(
+                        "salePrice",
+                        value
+                      )
+                    }
+                    placeholder="Ví dụ: 1800000"
                     type="number"
                   />
 

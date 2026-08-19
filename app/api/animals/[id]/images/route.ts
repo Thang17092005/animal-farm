@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import crypto from "crypto";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { randomUUID } from "crypto";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type RouteContext = {
   params: Promise<{
@@ -64,7 +68,10 @@ export async function GET(
 
     return NextResponse.json(animal.images);
   } catch (error) {
-    console.error("GET animal images error:", error);
+    console.error(
+      "GET animal images error:",
+      error
+    );
 
     return NextResponse.json(
       {
@@ -92,10 +99,6 @@ export async function POST(
   try {
     const { id } = await context.params;
 
-    // ------------------------------------------
-    // KIỂM TRA ĐỘNG VẬT
-    // ------------------------------------------
-
     const animal = await prisma.animal.findUnique({
       where: {
         id,
@@ -116,14 +119,12 @@ export async function POST(
       );
     }
 
-    // ------------------------------------------
-    // LẤY FILE
-    // ------------------------------------------
-
     const formData = await request.formData();
 
     const file = formData.get("file");
-    const captionValue = formData.get("caption");
+
+    const captionValue =
+      formData.get("caption");
 
     const makePrimary =
       formData.get("isPrimary") === "true";
@@ -140,7 +141,7 @@ export async function POST(
     }
 
     // ------------------------------------------
-    // KIỂM TRA FILE
+    // KIỂM TRA ĐỊNH DẠNG
     // ------------------------------------------
 
     if (!ALLOWED_TYPES.includes(file.type)) {
@@ -154,6 +155,10 @@ export async function POST(
         }
       );
     }
+
+    // ------------------------------------------
+    // KIỂM TRA DUNG LƯỢNG
+    // ------------------------------------------
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -175,10 +180,8 @@ export async function POST(
       EXTENSIONS[file.type] || ".jpg";
 
     const fileName =
-      `${crypto.randomUUID()}${extension}`;
+      `${randomUUID()}${extension}`;
 
-    // Lưu theo từng con vật:
-    // animal-id/uuid.jpg
     const storagePath =
       `${id}/${fileName}`;
 
@@ -191,20 +194,28 @@ export async function POST(
     );
 
     // ------------------------------------------
+    // KHỞI TẠO SUPABASE CHỈ KHI API ĐƯỢC GỌI
+    // ------------------------------------------
+
+    const supabaseAdmin =
+      getSupabaseAdmin();
+
+    // ------------------------------------------
     // UPLOAD LÊN SUPABASE STORAGE
     // ------------------------------------------
 
-    const { error: uploadError } =
-      await supabaseAdmin.storage
-        .from(STORAGE_BUCKET)
-        .upload(
-          storagePath,
-          buffer,
-          {
-            contentType: file.type,
-            upsert: false,
-          }
-        );
+    const {
+      error: uploadError,
+    } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .upload(
+        storagePath,
+        buffer,
+        {
+          contentType: file.type,
+          upsert: false,
+        }
+      );
 
     if (uploadError) {
       console.error(
@@ -245,8 +256,6 @@ export async function POST(
       makePrimary ||
       animal.images.length === 0;
 
-    // Nếu ảnh mới là ảnh chính
-    // thì bỏ ảnh chính cũ.
     if (shouldBePrimary) {
       await prisma.animalImage.updateMany({
         where: {
@@ -259,7 +268,7 @@ export async function POST(
     }
 
     // ------------------------------------------
-    // TẠO RECORD DATABASE
+    // LƯU DATABASE
     // ------------------------------------------
 
     const image =
@@ -319,7 +328,8 @@ export async function PATCH(
 
     const body = await request.json();
 
-    const imageId = body?.imageId;
+    const imageId =
+      body?.imageId;
 
     if (!imageId) {
       return NextResponse.json(
@@ -352,7 +362,7 @@ export async function PATCH(
     }
 
     // ------------------------------------------
-    // BỎ ẢNH CHÍNH HIỆN TẠI
+    // BỎ ẢNH CHÍNH CŨ
     // ------------------------------------------
 
     await prisma.animalImage.updateMany({
@@ -365,7 +375,7 @@ export async function PATCH(
     });
 
     // ------------------------------------------
-    // ĐẶT ẢNH MỚI THÀNH ẢNH CHÍNH
+    // ĐẶT ẢNH MỚI LÀM ẢNH CHÍNH
     // ------------------------------------------
 
     const updated =
@@ -429,6 +439,10 @@ export async function DELETE(
       );
     }
 
+    // ------------------------------------------
+    // TÌM ẢNH
+    // ------------------------------------------
+
     const image =
       await prisma.animalImage.findFirst({
         where: {
@@ -460,17 +474,27 @@ export async function DELETE(
         const publicPrefix =
           `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/`;
 
-        if (image.url.startsWith(publicPrefix)) {
+        if (
+          image.url.startsWith(
+            publicPrefix
+          )
+        ) {
           const storagePath =
             image.url.substring(
               publicPrefix.length
             );
 
+          const supabaseAdmin =
+            getSupabaseAdmin();
+
           const {
             error: removeError,
-          } = await supabaseAdmin.storage
-            .from(STORAGE_BUCKET)
-            .remove([storagePath]);
+          } =
+            await supabaseAdmin.storage
+              .from(STORAGE_BUCKET)
+              .remove([
+                storagePath,
+              ]);
 
           if (removeError) {
             console.warn(
@@ -498,8 +522,8 @@ export async function DELETE(
     });
 
     // ------------------------------------------
-    // NẾU VỪA XÓA ẢNH CHÍNH
-    // → CHỌN ẢNH KHÁC LÀM CHÍNH
+    // NẾU XÓA ẢNH CHÍNH
+    // → CHỌN ẢNH KHÁC LÀM ẢNH CHÍNH
     // ------------------------------------------
 
     if (image.isPrimary) {
@@ -537,7 +561,8 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        error: "Không thể xóa ảnh.",
+        error:
+          "Không thể xóa ảnh.",
         detail:
           error instanceof Error
             ? error.message
