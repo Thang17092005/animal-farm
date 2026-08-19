@@ -1743,7 +1743,7 @@ export default function AnimalsPage() {
           </div>
         ) : (
 
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
 
             {filteredAnimals.map(
               (animal) => {
@@ -1762,7 +1762,7 @@ export default function AnimalsPage() {
 
                     {/* ẢNH */}
 
-                    <div className="relative flex h-56 items-center justify-center bg-slate-100">
+                    <div className="relative flex h-40 items-center justify-center bg-slate-100 md:h-56">
 
                       {image ? (
                         <img
@@ -1790,7 +1790,7 @@ export default function AnimalsPage() {
 
                     {/* INFO */}
 
-                    <div className="p-5">
+                    <div className="p-3 md:p-5">
 
                       <div className="flex items-start justify-between gap-3">
 
@@ -1802,7 +1802,7 @@ export default function AnimalsPage() {
                             }
                           </p>
 
-                          <h2 className="mt-1 truncate text-xl font-bold">
+                          <h2 className="mt-1 truncate text-base font-bold md:text-xl">
                             {
                               animal.name
                             }
@@ -1826,7 +1826,7 @@ export default function AnimalsPage() {
 
                       </div>
 
-                      <div className="mt-4 space-y-2 text-sm">
+                      <div className="mt-3 space-y-1.5 text-xs md:mt-4 md:space-y-2 md:text-sm">
 
                         <InfoRow
                           label="🐾 Loài"
