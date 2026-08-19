@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import fs from "fs/promises";
-import path from "path";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import crypto from "crypto";
 
 type RouteContext = {
@@ -26,6 +25,8 @@ const EXTENSIONS: Record<string, string> = {
   "image/gif": ".gif",
 };
 
+const STORAGE_BUCKET = "animal-images";
+
 // ==================================================
 // GET - LẤY DANH SÁCH ẢNH
 // ==================================================
@@ -37,25 +38,23 @@ export async function GET(
   try {
     const { id } = await context.params;
 
-    const animal =
-      await prisma.animal.findUnique({
-        where: {
-          id,
-        },
-        include: {
-          images: {
-            orderBy: {
-              createdAt: "desc",
-            },
+    const animal = await prisma.animal.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        images: {
+          orderBy: {
+            createdAt: "desc",
           },
         },
-      });
+      },
+    });
 
     if (!animal) {
       return NextResponse.json(
         {
-          error:
-            "Không tìm thấy động vật.",
+          error: "Không tìm thấy động vật.",
         },
         {
           status: 404,
@@ -63,19 +62,13 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(
-      animal.images
-    );
+    return NextResponse.json(animal.images);
   } catch (error) {
-    console.error(
-      "GET animal images error:",
-      error
-    );
+    console.error("GET animal images error:", error);
 
     return NextResponse.json(
       {
-        error:
-          "Không thể lấy danh sách ảnh.",
+        error: "Không thể lấy danh sách ảnh.",
         detail:
           error instanceof Error
             ? error.message
@@ -103,21 +96,19 @@ export async function POST(
     // KIỂM TRA ĐỘNG VẬT
     // ------------------------------------------
 
-    const animal =
-      await prisma.animal.findUnique({
-        where: {
-          id,
-        },
-        include: {
-          images: true,
-        },
-      });
+    const animal = await prisma.animal.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        images: true,
+      },
+    });
 
     if (!animal) {
       return NextResponse.json(
         {
-          error:
-            "Không tìm thấy động vật.",
+          error: "Không tìm thấy động vật.",
         },
         {
           status: 404,
@@ -129,24 +120,18 @@ export async function POST(
     // LẤY FILE
     // ------------------------------------------
 
-    const formData =
-      await request.formData();
+    const formData = await request.formData();
 
-    const file =
-      formData.get("file");
-
-    const captionValue =
-      formData.get("caption");
+    const file = formData.get("file");
+    const captionValue = formData.get("caption");
 
     const makePrimary =
-      formData.get("isPrimary") ===
-      "true";
+      formData.get("isPrimary") === "true";
 
     if (!(file instanceof File)) {
       return NextResponse.json(
         {
-          error:
-            "Bạn chưa chọn ảnh.",
+          error: "Bạn chưa chọn ảnh.",
         },
         {
           status: 400,
@@ -158,11 +143,7 @@ export async function POST(
     // KIỂM TRA FILE
     // ------------------------------------------
 
-    if (
-      !ALLOWED_TYPES.includes(
-        file.type
-      )
-    ) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
         {
           error:
@@ -174,10 +155,7 @@ export async function POST(
       );
     }
 
-    if (
-      file.size >
-      MAX_FILE_SIZE
-    ) {
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
           error:
@@ -190,57 +168,74 @@ export async function POST(
     }
 
     // ------------------------------------------
-    // TẠO THƯ MỤC
-    // ------------------------------------------
-
-    const uploadDir =
-      path.join(
-        process.cwd(),
-        "public",
-        "uploads",
-        "animals"
-      );
-
-    await fs.mkdir(
-      uploadDir,
-      {
-        recursive: true,
-      }
-    );
-
-    // ------------------------------------------
-    // TÊN FILE
+    // TẠO TÊN FILE
     // ------------------------------------------
 
     const extension =
-      EXTENSIONS[file.type] ||
-      ".jpg";
+      EXTENSIONS[file.type] || ".jpg";
 
     const fileName =
-      `${id}-${crypto.randomUUID()}${extension}`;
+      `${crypto.randomUUID()}${extension}`;
 
-    const filePath =
-      path.join(
-        uploadDir,
-        fileName
-      );
+    // Lưu theo từng con vật:
+    // animal-id/uuid.jpg
+    const storagePath =
+      `${id}/${fileName}`;
 
     // ------------------------------------------
-    // LƯU FILE
+    // CHUYỂN FILE THÀNH BUFFER
     // ------------------------------------------
 
-    const buffer =
-      Buffer.from(
-        await file.arrayBuffer()
-      );
-
-    await fs.writeFile(
-      filePath,
-      buffer
+    const buffer = Buffer.from(
+      await file.arrayBuffer()
     );
 
+    // ------------------------------------------
+    // UPLOAD LÊN SUPABASE STORAGE
+    // ------------------------------------------
+
+    const { error: uploadError } =
+      await supabaseAdmin.storage
+        .from(STORAGE_BUCKET)
+        .upload(
+          storagePath,
+          buffer,
+          {
+            contentType: file.type,
+            upsert: false,
+          }
+        );
+
+    if (uploadError) {
+      console.error(
+        "Supabase Storage upload error:",
+        uploadError
+      );
+
+      return NextResponse.json(
+        {
+          error:
+            "Không thể lưu ảnh vào Supabase Storage.",
+          detail: uploadError.message,
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    // ------------------------------------------
+    // LẤY PUBLIC URL
+    // ------------------------------------------
+
+    const {
+      data: publicUrlData,
+    } = supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(storagePath);
+
     const url =
-      `/uploads/animals/${fileName}`;
+      publicUrlData.publicUrl;
 
     // ------------------------------------------
     // XÁC ĐỊNH ẢNH CHÍNH
@@ -252,18 +247,15 @@ export async function POST(
 
     // Nếu ảnh mới là ảnh chính
     // thì bỏ ảnh chính cũ.
-
     if (shouldBePrimary) {
-      await prisma.animalImage.updateMany(
-        {
-          where: {
-            animalId: id,
-          },
-          data: {
-            isPrimary: false,
-          },
-        }
-      );
+      await prisma.animalImage.updateMany({
+        where: {
+          animalId: id,
+        },
+        data: {
+          isPrimary: false,
+        },
+      });
     }
 
     // ------------------------------------------
@@ -278,14 +270,11 @@ export async function POST(
           url,
 
           caption:
-            typeof captionValue ===
-            "string"
-              ? captionValue.trim() ||
-                null
+            typeof captionValue === "string"
+              ? captionValue.trim() || null
               : null,
 
-          isPrimary:
-            shouldBePrimary,
+          isPrimary: shouldBePrimary,
         },
       });
 
@@ -328,17 +317,14 @@ export async function PATCH(
   try {
     const { id } = await context.params;
 
-    const body =
-      await request.json();
+    const body = await request.json();
 
-    const imageId =
-      body?.imageId;
+    const imageId = body?.imageId;
 
     if (!imageId) {
       return NextResponse.json(
         {
-          error:
-            "Thiếu mã ảnh.",
+          error: "Thiếu mã ảnh.",
         },
         {
           status: 400,
@@ -347,20 +333,17 @@ export async function PATCH(
     }
 
     const image =
-      await prisma.animalImage.findFirst(
-        {
-          where: {
-            id: imageId,
-            animalId: id,
-          },
-        }
-      );
+      await prisma.animalImage.findFirst({
+        where: {
+          id: imageId,
+          animalId: id,
+        },
+      });
 
     if (!image) {
       return NextResponse.json(
         {
-          error:
-            "Không tìm thấy ảnh.",
+          error: "Không tìm thấy ảnh.",
         },
         {
           status: 404,
@@ -368,20 +351,22 @@ export async function PATCH(
       );
     }
 
-    // Bỏ ảnh chính hiện tại
+    // ------------------------------------------
+    // BỎ ẢNH CHÍNH HIỆN TẠI
+    // ------------------------------------------
 
-    await prisma.animalImage.updateMany(
-      {
-        where: {
-          animalId: id,
-        },
-        data: {
-          isPrimary: false,
-        },
-      }
-    );
+    await prisma.animalImage.updateMany({
+      where: {
+        animalId: id,
+      },
+      data: {
+        isPrimary: false,
+      },
+    });
 
-    // Đặt ảnh mới thành ảnh chính
+    // ------------------------------------------
+    // ĐẶT ẢNH MỚI THÀNH ẢNH CHÍNH
+    // ------------------------------------------
 
     const updated =
       await prisma.animalImage.update({
@@ -393,9 +378,7 @@ export async function PATCH(
         },
       });
 
-    return NextResponse.json(
-      updated
-    );
+    return NextResponse.json(updated);
   } catch (error) {
     console.error(
       "PATCH animal image error:",
@@ -433,15 +416,12 @@ export async function DELETE(
       new URL(request.url);
 
     const imageId =
-      searchParams.get(
-        "imageId"
-      );
+      searchParams.get("imageId");
 
     if (!imageId) {
       return NextResponse.json(
         {
-          error:
-            "Thiếu mã ảnh.",
+          error: "Thiếu mã ảnh.",
         },
         {
           status: 400,
@@ -450,20 +430,17 @@ export async function DELETE(
     }
 
     const image =
-      await prisma.animalImage.findFirst(
-        {
-          where: {
-            id: imageId,
-            animalId: id,
-          },
-        }
-      );
+      await prisma.animalImage.findFirst({
+        where: {
+          id: imageId,
+          animalId: id,
+        },
+      });
 
     if (!image) {
       return NextResponse.json(
         {
-          error:
-            "Không tìm thấy ảnh.",
+          error: "Không tìm thấy ảnh.",
         },
         {
           status: 404,
@@ -472,34 +449,42 @@ export async function DELETE(
     }
 
     // ------------------------------------------
-    // XÓA FILE TRÊN Ổ ĐĨA
+    // XÓA FILE TRÊN SUPABASE STORAGE
     // ------------------------------------------
 
-    if (
-      image.url.startsWith(
-        "/uploads/"
-      )
-    ) {
-      const filePath =
-        path.join(
-          process.cwd(),
-          "public",
-          image.url.replace(
-            /^\/+/,
-            ""
-          )
-        );
+    try {
+      const supabaseUrl =
+        process.env.SUPABASE_URL;
 
-      try {
-        await fs.unlink(
-          filePath
-        );
-      } catch (error) {
-        console.warn(
-          "Không thể xóa file ảnh:",
-          error
-        );
+      if (supabaseUrl) {
+        const publicPrefix =
+          `${supabaseUrl}/storage/v1/object/public/${STORAGE_BUCKET}/`;
+
+        if (image.url.startsWith(publicPrefix)) {
+          const storagePath =
+            image.url.substring(
+              publicPrefix.length
+            );
+
+          const {
+            error: removeError,
+          } = await supabaseAdmin.storage
+            .from(STORAGE_BUCKET)
+            .remove([storagePath]);
+
+          if (removeError) {
+            console.warn(
+              "Không thể xóa file trên Supabase Storage:",
+              removeError
+            );
+          }
+        }
       }
+    } catch (storageError) {
+      console.warn(
+        "Storage delete error:",
+        storageError
+      );
     }
 
     // ------------------------------------------
@@ -519,16 +504,14 @@ export async function DELETE(
 
     if (image.isPrimary) {
       const nextImage =
-        await prisma.animalImage.findFirst(
-          {
-            where: {
-              animalId: id,
-            },
-            orderBy: {
-              createdAt: "asc",
-            },
-          }
-        );
+        await prisma.animalImage.findFirst({
+          where: {
+            animalId: id,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        });
 
       if (nextImage) {
         await prisma.animalImage.update({
@@ -544,8 +527,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message:
-        "Đã xóa ảnh.",
+      message: "Đã xóa ảnh.",
     });
   } catch (error) {
     console.error(
@@ -555,8 +537,7 @@ export async function DELETE(
 
     return NextResponse.json(
       {
-        error:
-          "Không thể xóa ảnh.",
+        error: "Không thể xóa ảnh.",
         detail:
           error instanceof Error
             ? error.message
