@@ -297,15 +297,16 @@ export default function DashboardPage() {
 
       {/* HEADER */}
 
-      <header className="border-b bg-white px-8 py-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <header className="border-b bg-white px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
           <div>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs text-slate-500 sm:text-sm">
               Chào mừng trở lại 👋
             </p>
 
-            <h1 className="mt-1 text-3xl font-bold text-slate-900">
+            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
               Tổng quan
             </h1>
           </div>
@@ -313,7 +314,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={goToAnimals}
-            className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 sm:w-auto sm:px-5 sm:text-base"
           >
             + Thêm động vật
           </button>
@@ -323,36 +324,39 @@ export default function DashboardPage() {
 
       {/* MAIN */}
 
-      <main className="px-3 py-5 sm:px-5 sm:py-6 md:px-8 md:py-8">
+      <main className="px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8">
+
         <div className="mx-auto max-w-7xl">
 
+          {/* ========================= */}
           {/* THỐNG KÊ */}
+          {/* ========================= */}
 
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
 
             {/* TỔNG CÁ THỂ */}
 
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
 
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
 
-                <div className="text-3xl">
+                <div className="text-2xl sm:text-3xl">
                   🐾
                 </div>
 
-                <span className="text-sm font-medium text-slate-400">
+                <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
                   TỔNG
                 </span>
 
               </div>
 
-              <div className="mt-6 text-3xl font-bold text-slate-900">
+              <div className="mt-4 text-2xl font-bold text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
                 {loading
                   ? "..."
                   : totalAnimals}
               </div>
 
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
                 Tổng số cá thể
               </p>
 
@@ -360,21 +364,21 @@ export default function DashboardPage() {
 
             {/* GIÁ TRỊ */}
 
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
 
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
 
-                <div className="text-3xl">
+                <div className="text-2xl sm:text-3xl">
                   💰
                 </div>
 
-                <span className="text-sm font-medium text-slate-400">
+                <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
                   TỔNG
                 </span>
 
               </div>
 
-              <div className="mt-6 text-3xl font-bold text-slate-900">
+              <div className="mt-4 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-6 sm:text-2xl md:text-3xl">
                 {loading
                   ? "..."
                   : formatMoney(
@@ -382,7 +386,7 @@ export default function DashboardPage() {
                     )}
               </div>
 
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
                 Tổng giá trị đàn
               </p>
 
@@ -390,27 +394,27 @@ export default function DashboardPage() {
 
             {/* SINH SẢN */}
 
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
 
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
 
-                <div className="text-3xl">
+                <div className="text-2xl sm:text-3xl">
                   🥚
                 </div>
 
-                <span className="text-sm font-medium text-slate-400">
+                <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
                   TỔNG
                 </span>
 
               </div>
 
-              <div className="mt-6 text-3xl font-bold text-slate-900">
+              <div className="mt-4 text-2xl font-bold text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
                 {loading
                   ? "..."
                   : breedingCount}
               </div>
 
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
                 Đang sinh sản
               </p>
 
@@ -418,27 +422,27 @@ export default function DashboardPage() {
 
             {/* CON NON */}
 
-            <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
 
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-2">
 
-                <div className="text-3xl">
+                <div className="text-2xl sm:text-3xl">
                   🐣
                 </div>
 
-                <span className="text-sm font-medium text-slate-400">
+                <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
                   TỔNG
                 </span>
 
               </div>
 
-              <div className="mt-6 text-3xl font-bold text-slate-900">
+              <div className="mt-4 text-2xl font-bold text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
                 {loading
                   ? "..."
                   : offspringCount}
               </div>
 
-              <p className="mt-1 text-slate-500">
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
                 Con non
               </p>
 
@@ -446,23 +450,25 @@ export default function DashboardPage() {
 
           </div>
 
+          {/* ========================= */}
           {/* GIỚI THIỆU */}
+          {/* ========================= */}
 
-          <section className="mt-8 rounded-2xl bg-emerald-700 p-8 text-white shadow-sm">
+          <section className="mt-5 rounded-2xl bg-emerald-700 p-5 text-white shadow-sm sm:mt-6 sm:p-6 md:mt-8 md:p-8">
 
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
               <div>
 
-                <p className="text-sm font-medium text-emerald-100">
+                <p className="text-xs font-medium text-emerald-100 sm:text-sm">
                   QUẢN LÝ TRANG TRẠI
                 </p>
 
-                <h2 className="mt-2 text-2xl font-bold">
+                <h2 className="mt-2 text-xl font-bold sm:text-2xl">
                   Quản lý đàn động vật của bạn
                 </h2>
 
-                <p className="mt-2 text-emerald-50">
+                <p className="mt-2 text-sm leading-6 text-emerald-50 sm:text-base">
                   Theo dõi cá thể, giá mua,
                   sinh sản, con non và tài
                   chính ở một nơi duy nhất.
@@ -473,7 +479,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={goToAnimals}
-                className="shrink-0 rounded-xl bg-white px-6 py-4 font-semibold text-emerald-700 transition hover:bg-emerald-50"
+                className="w-full shrink-0 rounded-xl bg-white px-5 py-3 font-semibold text-emerald-700 transition hover:bg-emerald-50 sm:w-auto sm:px-6 sm:py-4"
               >
                 + Thêm động vật
               </button>
@@ -482,19 +488,21 @@ export default function DashboardPage() {
 
           </section>
 
+          {/* ========================= */}
           {/* CÁ THỂ GẦN ĐÂY */}
+          {/* ========================= */}
 
-          <section className="mt-8">
+          <section className="mt-6 sm:mt-8">
 
-            <div className="mb-5 flex items-end justify-between">
+            <div className="mb-4 flex items-end justify-between gap-3 sm:mb-5">
 
               <div>
 
-                <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                <h2 className="text-lg font-bold text-slate-900 sm:text-xl md:text-2xl">
                   Cá thể gần đây
                 </h2>
 
-                <p className="mt-1 text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 sm:text-sm">
                   Những cá thể được thêm hoặc
                   cập nhật gần đây
                 </p>
@@ -504,7 +512,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={loadData}
-                className="font-semibold text-emerald-700 hover:text-emerald-800"
+                className="shrink-0 text-sm font-semibold text-emerald-700 hover:text-emerald-800 sm:text-base"
               >
                 Làm mới →
               </button>
@@ -514,7 +522,7 @@ export default function DashboardPage() {
             {/* LỖI */}
 
             {error && (
-              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+              <div className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -523,7 +531,7 @@ export default function DashboardPage() {
 
             {loading ? (
 
-              <div className="rounded-2xl border bg-white p-12 text-center text-slate-500">
+              <div className="rounded-2xl border bg-white p-10 text-center text-sm text-slate-500 sm:p-12 sm:text-base">
                 Đang tải dữ liệu...
               </div>
 
@@ -531,7 +539,7 @@ export default function DashboardPage() {
 
               /* KHÔNG CÓ ĐỘNG VẬT */
 
-              <div className="rounded-2xl border bg-white p-12 text-center">
+              <div className="rounded-2xl border bg-white p-8 text-center sm:p-12">
 
                 <div className="text-5xl">
                   🐾
@@ -541,7 +549,7 @@ export default function DashboardPage() {
                   Chưa có cá thể nào
                 </h3>
 
-                <p className="mt-1 text-slate-500">
+                <p className="mt-1 text-sm text-slate-500">
                   Hãy thêm động vật đầu tiên
                   vào trang trại.
                 </p>
@@ -549,7 +557,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={goToAnimals}
-                  className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white hover:bg-emerald-700"
+                  className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
                 >
                   + Thêm động vật
                 </button>
@@ -575,12 +583,12 @@ export default function DashboardPage() {
 
                       <div
                         key={animal.id}
-                        className="overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                       >
 
                         {/* ẢNH */}
 
-                        <div className="relative flex h-36 items-center justify-center bg-slate-100 sm:h-44 md:h-48">
+                        <div className="relative flex h-28 items-center justify-center bg-slate-100 sm:h-40 md:h-48">
 
                           {imageUrl ? (
 
@@ -594,7 +602,7 @@ export default function DashboardPage() {
 
                           ) : (
 
-                            <div className="text-7xl">
+                            <div className="text-5xl sm:text-7xl">
                               🐍
                             </div>
 
@@ -606,11 +614,11 @@ export default function DashboardPage() {
 
                         <div className="p-3 sm:p-4 md:p-5">
 
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start justify-between gap-2">
 
-                            <div>
+                            <div className="min-w-0">
 
-                              <p className="text-[10px] font-bold text-emerald-600 sm:text-xs">
+                              <p className="truncate text-[9px] font-bold text-emerald-600 sm:text-xs">
                                 {animal.code}
                               </p>
 
@@ -621,7 +629,7 @@ export default function DashboardPage() {
                             </div>
 
                             <span
-                              className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-medium sm:px-3 sm:text-xs ${getStatusClass(
+                              className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-medium sm:px-3 sm:text-xs ${getStatusClass(
                                 animal.status
                               )}`}
                             >
@@ -634,7 +642,7 @@ export default function DashboardPage() {
 
                           {/* THÔNG TIN */}
 
-                          <div className="mt-3 space-y-1.5 text-[11px] text-slate-600 sm:text-xs md:mt-4 md:space-y-2 md:text-sm">
+                          <div className="mt-3 space-y-1.5 text-[10px] leading-4 text-slate-600 sm:text-xs md:mt-4 md:space-y-2 md:text-sm">
 
                             {animal.species?.name && (
 
@@ -654,7 +662,7 @@ export default function DashboardPage() {
 
                             {animal.morph?.name && (
 
-                              <div>
+                              <div className="truncate">
                                 🎨 Biến thể:{" "}
 
                                 <span className="font-medium text-slate-800">
@@ -670,7 +678,7 @@ export default function DashboardPage() {
 
                             {animal.genetics && (
 
-                              <div>
+                              <div className="truncate">
                                 🧬 Gene:{" "}
 
                                 <span className="font-medium text-slate-800">
@@ -705,7 +713,7 @@ export default function DashboardPage() {
                               animal.purchasePrice !==
                                 undefined && (
 
-                                <div>
+                                <div className="break-words">
                                   💰 Giá mua:{" "}
 
                                   <span className="font-medium text-slate-800">
@@ -751,6 +759,7 @@ export default function DashboardPage() {
           </section>
 
         </div>
+
       </main>
 
     </div>

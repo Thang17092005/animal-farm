@@ -227,16 +227,16 @@ function StatCard({
   label: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-3xl">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+      <div className="text-2xl sm:text-3xl">
         {icon}
       </div>
 
-      <div className="mt-3 text-3xl font-bold text-slate-900">
+      <div className="mt-2 text-2xl font-bold text-slate-900 sm:mt-3 sm:text-3xl">
         {value}
       </div>
 
-      <div className="mt-1 text-sm text-slate-500">
+      <div className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-sm">
         {label}
       </div>
     </div>
@@ -1207,13 +1207,13 @@ export default function BreedingPage() {
   // ==================================================
 
   return (
-    <div className="min-h-screen bg-[#f7f9f8] p-6 text-slate-900">
+    <div className="min-h-screen bg-[#f7f9f8] px-3 py-4 text-slate-900 sm:px-5 sm:py-6 md:p-6">
 
       <div className="mx-auto max-w-[1500px]">
 
         {/* HEADER */}
 
-        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:mb-6 sm:gap-4 md:flex-row md:items-center">
 
           <div>
             <p className="text-sm text-slate-500">
@@ -1234,7 +1234,7 @@ export default function BreedingPage() {
             onClick={
               openAddForm
             }
-            className="rounded-xl bg-emerald-600 px-5 py-3 font-semibold text-white shadow-sm hover:bg-emerald-700"
+            className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 sm:w-auto sm:px-5 sm:text-base"
           >
             + Thêm lần phối
           </button>
@@ -1243,7 +1243,7 @@ export default function BreedingPage() {
 
         {/* STATS */}
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
 
           <StatCard
             icon="🥚"
@@ -1308,14 +1308,14 @@ export default function BreedingPage() {
 
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
 
-          <div className="flex items-center justify-between border-b border-slate-100 p-5">
+          <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
 
             <div>
-              <h2 className="text-xl font-bold">
+              <h2 className="text-lg font-bold sm:text-xl">
                 Các lần phối
               </h2>
 
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-sm">
                 Danh sách các lần phối đã ghi nhận.
               </p>
             </div>
@@ -1370,7 +1370,7 @@ export default function BreedingPage() {
                       key={
                         breeding.id
                       }
-                      className="p-5 transition hover:bg-slate-50"
+                      className="p-3 transition hover:bg-slate-50 sm:p-5"
                     >
 
                       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
@@ -1460,7 +1460,7 @@ export default function BreedingPage() {
 
                         {/* KẾT QUẢ */}
 
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
 
                           {breeding.status ===
                             "LAID_EGGS" &&
@@ -1520,7 +1520,7 @@ export default function BreedingPage() {
                               breeding
                             )
                           }
-                          className="shrink-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-white"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-white sm:w-auto sm:px-4 sm:text-sm"
                         >
                           ✏️ Sửa
                         </button>
@@ -1545,7 +1545,7 @@ export default function BreedingPage() {
 
       {showForm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4"
           onMouseDown={(
             event
           ) => {
@@ -1558,20 +1558,20 @@ export default function BreedingPage() {
           }}
         >
 
-          <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+          <div className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl">
 
             {/* HEADER */}
 
-            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-5">
+            <div className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-100 bg-white px-4 py-4 sm:px-6 sm:py-5">
 
               <div>
-                <h2 className="text-2xl font-bold">
+                <h2 className="text-xl font-bold sm:text-2xl">
                   {editingId
                     ? "Sửa lần phối"
                     : "Thêm lần phối"}
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-sm">
                   Chọn kiểu sinh sản và cặp cá thể.
                 </p>
               </div>
@@ -1595,7 +1595,7 @@ export default function BreedingPage() {
               onSubmit={
                 handleSubmit
               }
-              className="p-6"
+              className="p-4 sm:p-6"
             >
 
               {error && (
@@ -1629,7 +1629,7 @@ export default function BreedingPage() {
                     }`}
                   >
 
-                    <div className="text-3xl">
+                    <div className="text-2xl sm:text-3xl">
                       🐍
                     </div>
 
@@ -1637,7 +1637,7 @@ export default function BreedingPage() {
                       Sinh sản cùng loài
                     </div>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-sm">
                       Chỉ cho phép đực và cái cùng loài.
                     </p>
 
@@ -1658,7 +1658,7 @@ export default function BreedingPage() {
                     }`}
                   >
 
-                    <div className="text-3xl">
+                    <div className="text-2xl sm:text-3xl">
                       🧬
                     </div>
 
@@ -1666,7 +1666,7 @@ export default function BreedingPage() {
                       Lai khác loài
                     </div>
 
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500 sm:text-sm">
                       Cho phép đực và cái thuộc hai loài khác nhau.
                     </p>
 
@@ -1741,7 +1741,7 @@ export default function BreedingPage() {
                   🐾 Cặp sinh sản
                 </h3>
 
-                <div className="grid gap-5 md:grid-cols-2">
+                <div className="grid gap-4 md:gap-5 md:grid-cols-2">
 
                   {/* ĐỰC */}
 

@@ -406,12 +406,12 @@ export default function ReportsPage() {
   }, [transactions]);
 
   return (
-    <div className="min-h-screen bg-[#f7f9f8] p-6 text-slate-900">
+    <div className="min-h-screen bg-[#f7f9f8] px-3 py-4 text-slate-900 sm:px-5 sm:py-6 md:p-6">
       <div className="mx-auto max-w-[1500px]">
 
-        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="mb-5 flex flex-col justify-between gap-3 sm:mb-6 sm:gap-4 md:flex-row md:items-center">
           <div>
-            <p className="text-sm text-slate-500">
+            <p className="text-xs text-slate-500 sm:text-sm">
               Quản lý trang trại
             </p>
 
@@ -428,7 +428,7 @@ export default function ReportsPage() {
             type="button"
             onClick={refreshSilently}
             disabled={loading}
-            className="rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold transition hover:bg-slate-50 disabled:opacity-50"
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50 sm:w-auto sm:px-5 sm:text-base"
           >
             {loading ? "Đang tải..." : "Làm mới →"}
           </button>
@@ -448,7 +448,7 @@ export default function ReportsPage() {
           <>
             {/* TỔNG QUAN */}
 
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
               <ReportCard
                 icon="🐾"
                 label="Tổng số cá thể"
@@ -481,14 +481,14 @@ export default function ReportsPage() {
 
             {/* TÌNH HÌNH ĐÀN */}
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="mt-5 grid gap-4 lg:mt-6 lg:grid-cols-2 lg:gap-6">
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <h2 className="text-xl font-bold">
                   🐾 Tình trạng đàn
                 </h2>
 
-                <div className="mt-5 grid grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 sm:gap-4">
                   <MiniStat
                     label="Đang khỏe"
                     value={stats.healthy}
@@ -528,12 +528,12 @@ export default function ReportsPage() {
 
               {/* SINH SẢN */}
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <h2 className="text-xl font-bold">
                   🥚 Sinh sản
                 </h2>
 
-                <div className="mt-5 grid grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 sm:gap-4">
                   <MiniStat
                     label="Lần phối"
                     value={stats.breedingTotal}
@@ -569,7 +569,7 @@ export default function ReportsPage() {
 
             {/* TÀI CHÍNH */}
 
-            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-5">
               <div>
                 <h2 className="text-xl font-bold">
                   💰 Tổng hợp tài chính
@@ -580,7 +580,7 @@ export default function ReportsPage() {
                 </p>
               </div>
 
-              <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-5 sm:gap-5 xl:grid-cols-4">
                 <ReportCard
                   icon="📈"
                   label="Tổng thu"
@@ -610,8 +610,8 @@ export default function ReportsPage() {
                 />
               </div>
 
-              <div className="mt-5 grid gap-5 md:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50 p-5">
+              <div className="mt-4 grid gap-4 md:mt-5 md:gap-5 md:grid-cols-2">
+                <div className="rounded-2xl bg-slate-50 p-4 sm:p-5">
                   <h3 className="font-bold">
                     Chi phí
                   </h3>
@@ -654,7 +654,7 @@ export default function ReportsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl bg-slate-50 p-5">
+                <div className="rounded-2xl bg-slate-50 p-4 sm:p-5">
                   <h3 className="font-bold">
                     Giá trị đàn
                   </h3>
@@ -696,7 +696,7 @@ export default function ReportsPage() {
 
             {/* LOÀI */}
 
-            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mt-6 sm:p-5">
               <h2 className="text-xl font-bold">
                 🐍 Phân bố theo loài
               </h2>
@@ -706,7 +706,7 @@ export default function ReportsPage() {
                   Chưa có dữ liệu.
                 </p>
               ) : (
-                <div className="mt-5 space-y-3">
+                <div className="mt-4 space-y-3 sm:mt-5">
                   {speciesRows.map(([species, count]) => {
                     const percent =
                       stats.totalAnimals > 0
@@ -715,12 +715,12 @@ export default function ReportsPage() {
 
                     return (
                       <div key={species}>
-                        <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                           <span className="font-semibold">
                             {species}
                           </span>
 
-                          <span className="text-sm text-slate-500">
+                          <span className="text-xs text-slate-500 sm:text-sm">
                             {count} con · {percent.toFixed(1)}%
                           </span>
                         </div>
@@ -743,7 +743,7 @@ export default function ReportsPage() {
             {/* GIAO DỊCH GẦN ĐÂY */}
 
             <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-5 py-4">
+              <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
                 <h2 className="text-xl font-bold">
                   🧾 Giao dịch gần đây
                 </h2>
@@ -766,7 +766,7 @@ export default function ReportsPage() {
                     return (
                       <div
                         key={transaction.id}
-                        className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-2 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
                       >
                         <div>
                           <p className="font-semibold">
@@ -774,7 +774,7 @@ export default function ReportsPage() {
                               transactionLabels[transaction.type]}
                           </p>
 
-                          <p className="text-sm text-slate-500">
+                          <p className="text-xs text-slate-500 sm:text-sm">
                             {transactionLabels[transaction.type]}
                             {" · "}
                             {dateText(transaction.date)}
@@ -820,8 +820,8 @@ function ReportCard({
   valueClass?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="text-3xl">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="text-2xl sm:text-3xl">
         {icon}
       </div>
 
@@ -829,7 +829,7 @@ function ReportCard({
         {label}
       </p>
 
-      <p className={`mt-1 text-2xl font-bold ${valueClass}`}>
+      <p className={`mt-1 break-words text-lg font-bold leading-tight sm:text-2xl ${valueClass}`}>
         {value}
       </p>
     </div>
@@ -844,8 +844,8 @@ function MiniStat({
   value: number;
 }) {
   return (
-    <div className="rounded-xl bg-slate-50 p-4">
-      <p className="text-sm text-slate-500">
+    <div className="rounded-xl bg-slate-50 p-3 sm:p-4">
+      <p className="text-xs text-slate-500 sm:text-sm">
         {label}
       </p>
 
@@ -864,8 +864,8 @@ function FinanceLine({
   value: number;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm text-slate-600">
+    <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <span className="text-xs text-slate-600 sm:text-sm">
         {label}
       </span>
 
@@ -886,8 +886,8 @@ function InfoLine({
   valueClass?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm text-slate-600">
+    <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <span className="text-xs text-slate-600 sm:text-sm">
         {label}
       </span>
 
