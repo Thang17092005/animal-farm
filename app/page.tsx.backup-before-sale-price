@@ -264,19 +264,6 @@ export default function DashboardPage() {
       0
     );
 
-  const totalSaleValue =
-    activeAnimals.reduce(
-      (sum, animal) => {
-        return (
-          sum +
-          Number(
-            animal.salePrice ?? 0
-          )
-        );
-      },
-      0
-    );
-
   const breedingCount =
     activeAnimals.filter(
       (animal) =>
