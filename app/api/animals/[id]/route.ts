@@ -110,6 +110,7 @@ export async function PUT(
       sex,
       weight,
       purchasePrice,
+      salePrice,
       notes,
       genetics,
       fatherId,
@@ -192,7 +193,31 @@ export async function PUT(
     }
 
     // =========================
-    // CẬP NHẬT
+    // CHUYỂN GIÁ MUA
+    // =========================
+
+    const parsedPurchasePrice =
+      purchasePrice !== undefined &&
+      purchasePrice !== null &&
+      purchasePrice !== "" &&
+      !isNaN(Number(purchasePrice))
+        ? Number(purchasePrice)
+        : null;
+
+    // =========================
+    // CHUYỂN GIÁ BÁN
+    // =========================
+
+    const parsedSalePrice =
+      salePrice !== undefined &&
+      salePrice !== null &&
+      salePrice !== "" &&
+      !isNaN(Number(salePrice))
+        ? Number(salePrice)
+        : null;
+
+    // =========================
+    // CẬP NHẬT ĐỘNG VẬT
     // =========================
 
     const animal =
@@ -224,12 +249,10 @@ export async function PUT(
               : null,
 
           purchasePrice:
-            purchasePrice !== undefined &&
-            purchasePrice !== null &&
-            purchasePrice !== "" &&
-            !isNaN(Number(purchasePrice))
-              ? Number(purchasePrice)
-              : null,
+            parsedPurchasePrice,
+
+          salePrice:
+            parsedSalePrice,
 
           genetics:
             genetics?.trim() || null,
