@@ -710,6 +710,7 @@ export default function AnimalsPage() {
               animal.purchasePrice
             ),
 
+
       salePrice:
         animal.salePrice ===
             null ||
@@ -1377,6 +1378,7 @@ export default function AnimalsPage() {
             purchasePrice:
               form.purchasePrice.trim(),
 
+
             salePrice:
               form.salePrice.trim(),
 
@@ -1777,7 +1779,7 @@ export default function AnimalsPage() {
 
                     {/* ẢNH */}
 
-                    <div className="relative flex h-36 items-center justify-center bg-slate-100 sm:h-44 md:h-56">
+                    <div className="relative flex h-40 items-center justify-center bg-slate-100 md:h-56">
 
                       {image ? (
                         <img
@@ -1805,7 +1807,7 @@ export default function AnimalsPage() {
 
                     {/* INFO */}
 
-                    <div className="p-3 sm:p-4 md:p-5">
+                    <div className="p-3 md:p-5">
 
                       <div className="flex items-start justify-between gap-3">
 
@@ -2439,7 +2441,7 @@ export default function AnimalsPage() {
                         value
                       )
                     }
-                    placeholder="Ví dụ: 1800000"
+                    placeholder="Ví dụ: 2000000"
                     type="number"
                   />
 

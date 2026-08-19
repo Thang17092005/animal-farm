@@ -121,7 +121,6 @@ type AnimalForm = {
   sex: Sex;
   weight: string;
   purchasePrice: string;
-  salePrice: string;
   status: AnimalStatus;
   genetics: string;
   fatherId: string;
@@ -137,7 +136,6 @@ const emptyForm: AnimalForm = {
   sex: "UNKNOWN",
   weight: "",
   purchasePrice: "",
-  salePrice: "",
   status: "HEALTHY",
   genetics: "",
   fatherId: "",
@@ -708,16 +706,6 @@ export default function AnimalsPage() {
           ? ""
           : String(
               animal.purchasePrice
-            ),
-
-      salePrice:
-        animal.salePrice ===
-            null ||
-        animal.salePrice ===
-            undefined
-          ? ""
-          : String(
-              animal.salePrice
             ),
 
       status: animal.status,
@@ -1377,9 +1365,6 @@ export default function AnimalsPage() {
             purchasePrice:
               form.purchasePrice.trim(),
 
-            salePrice:
-              form.salePrice.trim(),
-
             status:
               form.status,
 
@@ -1777,7 +1762,7 @@ export default function AnimalsPage() {
 
                     {/* ẢNH */}
 
-                    <div className="relative flex h-36 items-center justify-center bg-slate-100 sm:h-44 md:h-56">
+                    <div className="relative flex h-40 items-center justify-center bg-slate-100 md:h-56">
 
                       {image ? (
                         <img
@@ -1805,7 +1790,7 @@ export default function AnimalsPage() {
 
                     {/* INFO */}
 
-                    <div className="p-3 sm:p-4 md:p-5">
+                    <div className="p-3 md:p-5">
 
                       <div className="flex items-start justify-between gap-3">
 
@@ -1891,13 +1876,6 @@ export default function AnimalsPage() {
                           label="💰 Giá mua"
                           value={formatMoney(
                             animal.purchasePrice
-                          )}
-                        />
-
-                        <InfoRow
-                          label="🏷️ Giá bán"
-                          value={formatMoney(
-                            animal.salePrice
                           )}
                         />
 
@@ -2423,23 +2401,6 @@ export default function AnimalsPage() {
                       )
                     }
                     placeholder="Ví dụ: 1200000"
-                    type="number"
-                  />
-
-                  <Field
-                    label="Giá bán (đ)"
-                    value={
-                      form.salePrice
-                    }
-                    onChange={(
-                      value
-                    ) =>
-                      updateForm(
-                        "salePrice",
-                        value
-                      )
-                    }
-                    placeholder="Ví dụ: 1800000"
                     type="number"
                   />
 
