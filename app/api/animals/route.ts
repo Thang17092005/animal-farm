@@ -146,6 +146,7 @@ export async function POST(
       sex,
       weight,
       purchasePrice,
+      salePrice,
       notes,
       genetics,
       fatherId,
@@ -412,6 +413,12 @@ export async function POST(
           purchasePrice:
             parseNumber(
               purchasePrice
+            ),
+
+
+          salePrice:
+            parseNumber(
+              salePrice
             ),
 
           genetics:

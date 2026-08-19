@@ -239,6 +239,11 @@ export default function DashboardPage() {
 
   /*
    * THỐNG KÊ
+   *
+   * - Đàn đang quản lý: không tính cá thể đã bán / đã mất.
+   * - Giá trị mua: tổng giá mua của đàn đang quản lý.
+   * - Giá bán dự kiến: tổng giá bán của đàn đang quản lý nhưng chưa bán.
+   * - Doanh thu đã bán: chỉ tính giá bán của cá thể có trạng thái SOLD.
    */
 
   const activeAnimals =
@@ -248,32 +253,42 @@ export default function DashboardPage() {
         animal.status !== "DECEASED"
     );
 
+  const soldAnimals =
+    animals.filter(
+      (animal) =>
+        animal.status === "SOLD"
+    );
+
   const totalAnimals =
     activeAnimals.length;
 
   const totalValue =
     activeAnimals.reduce(
-      (sum, animal) => {
-        return (
-          sum +
-          Number(
-            animal.purchasePrice ?? 0
-          )
-        );
-      },
+      (sum, animal) =>
+        sum +
+        Number(
+          animal.purchasePrice ?? 0
+        ),
       0
     );
 
   const totalSaleValue =
     activeAnimals.reduce(
-      (sum, animal) => {
-        return (
-          sum +
-          Number(
-            animal.salePrice ?? 0
-          )
-        );
-      },
+      (sum, animal) =>
+        sum +
+        Number(
+          animal.salePrice ?? 0
+        ),
+      0
+    );
+
+  const totalSoldValue =
+    soldAnimals.reduce(
+      (sum, animal) =>
+        sum +
+        Number(
+          animal.salePrice ?? 0
+        ),
       0
     );
 
@@ -348,117 +363,111 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-4">
 
             {/* TỔNG CÁ THỂ */}
-
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
-
               <div className="flex items-start justify-between gap-2">
-
-                <div className="text-2xl sm:text-3xl">
-                  🐾
-                </div>
-
+                <div className="text-2xl sm:text-3xl">🐾</div>
                 <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
-                  TỔNG
+                  ĐANG NUÔI
                 </span>
-
               </div>
 
               <div className="mt-4 text-2xl font-bold text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
-                {loading
-                  ? "..."
-                  : totalAnimals}
+                {loading ? "..." : totalAnimals}
               </div>
 
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
-                Tổng số cá thể
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Cá thể đang quản lý
               </p>
-
             </div>
 
-            {/* GIÁ TRỊ */}
-
+            {/* GIÁ TRỊ MUA */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
-
               <div className="flex items-start justify-between gap-2">
-
-                <div className="text-2xl sm:text-3xl">
-                  💰
-                </div>
-
+                <div className="text-2xl sm:text-3xl">💰</div>
                 <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
-                  TỔNG
+                  VỐN
                 </span>
-
               </div>
 
               <div className="mt-4 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-6 sm:text-2xl md:text-3xl">
-                {loading
-                  ? "..."
-                  : formatMoney(
-                      totalValue
-                    )}
+                {loading ? "..." : formatMoney(totalValue)}
               </div>
 
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
-                Tổng giá trị đàn
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Tổng giá mua đàn đang quản lý
               </p>
+            </div>
 
+            {/* GIÁ BÁN DỰ KIẾN */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-2xl sm:text-3xl">🏷️</div>
+                <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
+                  DỰ KIẾN
+                </span>
+              </div>
+
+              <div className="mt-4 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-6 sm:text-2xl md:text-3xl">
+                {loading ? "..." : formatMoney(totalSaleValue)}
+              </div>
+
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Giá bán dự kiến của đàn
+              </p>
+            </div>
+
+            {/* ĐÃ BÁN */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
+              <div className="flex items-start justify-between gap-2">
+                <div className="text-2xl sm:text-3xl">💵</div>
+                <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
+                  ĐÃ BÁN
+                </span>
+              </div>
+
+              <div className="mt-4 break-words text-xl font-bold leading-tight text-slate-900 sm:mt-6 sm:text-2xl md:text-3xl">
+                {loading ? "..." : formatMoney(totalSoldValue)}
+              </div>
+
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Doanh thu từ cá thể đã bán
+              </p>
             </div>
 
             {/* SINH SẢN */}
-
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
-
               <div className="flex items-start justify-between gap-2">
-
-                <div className="text-2xl sm:text-3xl">
-                  🥚
-                </div>
-
+                <div className="text-2xl sm:text-3xl">🥚</div>
                 <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
-                  TỔNG
+                  ĐANG PHỐI
                 </span>
-
               </div>
 
               <div className="mt-4 text-2xl font-bold text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
-                {loading
-                  ? "..."
-                  : breedingCount}
+                {loading ? "..." : breedingCount}
               </div>
 
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
-                Đang sinh sản
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Cá thể đang sinh sản
               </p>
-
             </div>
 
             {/* CON NON */}
-
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 md:p-6">
-
               <div className="flex items-start justify-between gap-2">
-
-                <div className="text-2xl sm:text-3xl">
-                  🐣
-                </div>
-
+                <div className="text-2xl sm:text-3xl">🐣</div>
                 <span className="text-[9px] font-semibold text-slate-400 sm:text-xs">
-                  TỔNG
+                  CON NON
                 </span>
-
               </div>
 
               <div className="mt-4 text-2xl font-bold text-slate-900 sm:mt-6 sm:text-3xl md:text-4xl">
-                {loading
-                  ? "..."
-                  : offspringCount}
+                {loading ? "..." : offspringCount}
               </div>
 
-              <p className="mt-1 text-xs text-slate-500 sm:text-sm md:text-base">
-                Con non
+              <p className="mt-1 text-xs text-slate-500 sm:text-sm">
+                Con non được ghi nhận
               </p>
-
             </div>
 
           </div>
@@ -732,6 +741,23 @@ export default function DashboardPage() {
                                   <span className="font-medium text-slate-800">
                                     {formatMoney(
                                       animal.purchasePrice
+                                    )}
+                                  </span>
+                                </div>
+
+                              )}
+
+                            {animal.salePrice !==
+                              null &&
+                              animal.salePrice !==
+                                undefined && (
+
+                                <div className="break-words">
+                                  🏷️ Giá bán:{" "}
+
+                                  <span className="font-medium text-slate-800">
+                                    {formatMoney(
+                                      animal.salePrice
                                     )}
                                   </span>
                                 </div>
