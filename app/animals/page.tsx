@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSearchParams } from "next/navigation";
 
 type Sex =
   | "MALE"
@@ -315,9 +314,6 @@ function getSourceBreeding(
 }
 
 export default function AnimalsPage() {
-  const searchParams =
-    useSearchParams();
-
   const autoOpenedEditRef =
     useRef(false);
 
@@ -756,15 +752,24 @@ export default function AnimalsPage() {
   // ============================
 
   useEffect(() => {
-    const editId =
-      searchParams.get("edit");
-
+    // Đọc query ?edit=... chỉ ở phía trình duyệt.
+    // Tránh lỗi prerender/build của Next.js do useSearchParams()
+    // khi trang chưa được bọc trong Suspense.
     if (
-      !editId ||
+      typeof window === "undefined" ||
       loading ||
       autoOpenedEditRef.current ||
       animals.length === 0
     ) {
+      return;
+    }
+
+    const editId =
+      new URLSearchParams(
+        window.location.search
+      ).get("edit");
+
+    if (!editId) {
       return;
     }
 
@@ -793,7 +798,6 @@ export default function AnimalsPage() {
   }, [
     animals,
     loading,
-    searchParams,
   ]);
 
   function updateForm(
