@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  Prisma,
+  BreedingStatus,
+  BreedingType,
+} from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-function parseDate(value: unknown) {
-  if (!value) {
+function parseDate(value: unknown): Date | null {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
     return null;
   }
 
@@ -15,7 +24,9 @@ function parseDate(value: unknown) {
   return date;
 }
 
-function parseIntOrNull(value: unknown) {
+function parseIntOrNull(
+  value: unknown
+): number | null {
   if (
     value === null ||
     value === undefined ||
@@ -33,118 +44,246 @@ function parseIntOrNull(value: unknown) {
   return Math.max(0, number);
 }
 
-function getBreedingData(
-  body: Record<string, any>
-) {
-  const allowedStatuses = [
-    "PLANNED",
-    "PAIRING",
-    "PREGNANT",
-    "LAID_EGGS",
-    "COMPLETED",
-    "FAILED",
-    "CANCELLED",
+function parseBreedingType(
+  value: unknown
+): BreedingType {
+  if (value === "CROSSBREED") {
+    return BreedingType.CROSSBREED;
+  }
+
+  return BreedingType.SAME_SPECIES;
+}
+
+function parseBreedingStatus(
+  value: unknown
+): BreedingStatus {
+  const statuses: BreedingStatus[] = [
+    BreedingStatus.PLANNED,
+    BreedingStatus.PAIRING,
+    BreedingStatus.PREGNANT,
+    BreedingStatus.LAID_EGGS,
+    BreedingStatus.COMPLETED,
+    BreedingStatus.FAILED,
+    BreedingStatus.CANCELLED,
   ];
 
-  const status =
-    allowedStatuses.includes(
-      body.status
+  if (
+    typeof value === "string" &&
+    statuses.includes(
+      value as BreedingStatus
     )
-      ? body.status
-      : "PLANNED";
+  ) {
+    return value as BreedingStatus;
+  }
+
+  return BreedingStatus.PLANNED;
+}
+
+function buildBreedingData(
+  body: Record<string, unknown>
+): Prisma.BreedingUncheckedCreateInput {
+  const status =
+    parseBreedingStatus(body.status);
 
   const breedingType =
-    body.breedingType ===
-    "CROSSBREED"
-      ? "CROSSBREED"
-      : "SAME_SPECIES";
-
-  const pairingDate =
-    parseDate(
-      body.pairingDate
+    parseBreedingType(
+      body.breedingType
     );
 
+  const pairingDate =
+    parseDate(body.pairingDate);
+
+  const femaleId =
+    typeof body.femaleId === "string"
+      ? body.femaleId.trim()
+      : "";
+
+  const maleId =
+    typeof body.maleId === "string" &&
+    body.maleId.trim()
+      ? body.maleId.trim()
+      : null;
+
   return {
-    maleId:
-      body.maleId || null,
+    maleId,
 
-    femaleId:
-      body.femaleId,
-
-    breedingType,
+    femaleId,
 
     startDate:
-      pairingDate ||
-      parseDate(
-        body.startDate
-      ),
+      pairingDate ??
+      parseDate(body.startDate),
 
     pairingDate,
 
     expectedDate:
-      parseDate(
-        body.expectedDate
-      ),
+      parseDate(body.expectedDate),
 
     layingDate:
-      parseDate(
-        body.layingDate
-      ),
+      parseDate(body.layingDate),
 
     status,
 
     notes:
-      typeof body.notes ===
-      "string"
-        ? body.notes.trim() ||
-          null
+      typeof body.notes === "string"
+        ? body.notes.trim() || null
         : null,
 
     eggCount:
-      status ===
-      "LAID_EGGS"
+      status === BreedingStatus.LAID_EGGS
         ? parseIntOrNull(
             body.eggCount
           )
         : null,
 
-    offspringTotal:
-      status ===
-      "COMPLETED"
+    offspringDead:
+      status === BreedingStatus.COMPLETED
         ? parseIntOrNull(
-            body.offspringTotal
+            body.offspringDead
           )
         : null,
 
     offspringFemale:
-      status ===
-      "COMPLETED"
+      status === BreedingStatus.COMPLETED
         ? parseIntOrNull(
             body.offspringFemale
           )
         : null,
 
     offspringMale:
-      status ===
-      "COMPLETED"
+      status === BreedingStatus.COMPLETED
         ? parseIntOrNull(
             body.offspringMale
           )
         : null,
 
-    offspringDead:
-      status ===
-      "COMPLETED"
+    offspringTotal:
+      status === BreedingStatus.COMPLETED
         ? parseIntOrNull(
-            body.offspringDead
+            body.offspringTotal
           )
         : null,
+
+    breedingType,
   };
 }
 
-// ======================================================
-// KIỂM TRA CON CÁI ĐANG BẬN SINH SẢN
-// ======================================================
+async function validateBreedingPair(
+  maleId: string | null,
+  femaleId: string,
+  breedingType: BreedingType
+) {
+  if (!maleId) {
+    return {
+      error: "Bạn cần chọn con đực.",
+      status: 400,
+    };
+  }
+
+  if (!femaleId) {
+    return {
+      error: "Bạn cần chọn con cái.",
+      status: 400,
+    };
+  }
+
+  if (maleId === femaleId) {
+    return {
+      error:
+        "Con đực và con cái không thể là cùng một cá thể.",
+      status: 400,
+    };
+  }
+
+  const [male, female] =
+    await Promise.all([
+      prisma.animal.findUnique({
+        where: {
+          id: maleId,
+        },
+
+        include: {
+          species: true,
+          morph: true,
+        },
+      }),
+
+      prisma.animal.findUnique({
+        where: {
+          id: femaleId,
+        },
+
+        include: {
+          species: true,
+          morph: true,
+        },
+      }),
+    ]);
+
+  if (!male) {
+    return {
+      error: "Không tìm thấy con đực.",
+      status: 404,
+    };
+  }
+
+  if (!female) {
+    return {
+      error: "Không tìm thấy con cái.",
+      status: 404,
+    };
+  }
+
+  if (male.sex !== "MALE") {
+    return {
+      error:
+        `"${male.name}" không phải cá thể đực.`,
+      status: 400,
+    };
+  }
+
+  if (female.sex !== "FEMALE") {
+    return {
+      error:
+        `"${female.name}" không phải cá thể cái.`,
+      status: 400,
+    };
+  }
+
+  const sameSpecies =
+    male.speciesId ===
+    female.speciesId;
+
+  if (
+    breedingType ===
+      BreedingType.SAME_SPECIES &&
+    !sameSpecies
+  ) {
+    return {
+      error:
+        `Hai cá thể thuộc loài khác nhau (${male.species.name} × ${female.species.name}). Hãy chọn "Lai khác loài".`,
+      status: 400,
+    };
+  }
+
+  if (
+    breedingType ===
+      BreedingType.CROSSBREED &&
+    sameSpecies
+  ) {
+    return {
+      error:
+        `Hai cá thể đều thuộc loài ${male.species.name}. Hãy chọn "Cùng loài".`,
+      status: 400,
+    };
+  }
+
+  return {
+    male,
+    female,
+    error: null,
+    status: 200,
+  };
+}
 
 async function validateFemaleAvailability(
   femaleId: string,
@@ -157,17 +296,16 @@ async function validateFemaleAvailability(
 
         status: {
           in: [
-            "PLANNED",
-            "PAIRING",
-            "PREGNANT",
+            BreedingStatus.PLANNED,
+            BreedingStatus.PAIRING,
+            BreedingStatus.PREGNANT,
           ],
         },
 
         ...(excludeBreedingId
           ? {
               id: {
-                not:
-                  excludeBreedingId,
+                not: excludeBreedingId,
               },
             }
           : {}),
@@ -182,8 +320,7 @@ async function validateFemaleAvailability(
   if (activeBreeding) {
     return {
       error:
-        "Con cái này đang có một lần phối khác ở trạng thái đã lên kế hoạch, đã phối hoặc đang mang thai. Không thể thêm lần phối mới.",
-
+        "Con cái này đang có một lần phối khác chưa hoàn thành.",
       status: 400,
     };
   }
@@ -193,319 +330,103 @@ async function validateFemaleAvailability(
     status: 200,
   };
 }
-
-// ======================================================
-// KIỂM TRA CẶP SINH SẢN
-// ======================================================
-
-async function validateBreedingPair(
-  maleId: string | null,
-  femaleId: string,
-  breedingType: string
-) {
-  if (!maleId) {
-    return {
-      error:
-        "Bạn cần chọn con đực.",
-
-      status: 400,
-    };
-  }
-
-  if (!femaleId) {
-    return {
-      error:
-        "Bạn cần chọn con cái.",
-
-      status: 400,
-    };
-  }
-
-  if (
-    maleId ===
-    femaleId
-  ) {
-    return {
-      error:
-        "Con đực và con cái không thể là cùng một cá thể.",
-
-      status: 400,
-    };
-  }
-
-  const [
-    male,
-    female,
-  ] = await Promise.all([
-    prisma.animal.findUnique({
-      where: {
-        id: maleId,
-      },
-
-      include: {
-        species: true,
-      },
-    }),
-
-    prisma.animal.findUnique({
-      where: {
-        id: femaleId,
-      },
-
-      include: {
-        species: true,
-      },
-    }),
-  ]);
-
-  if (!male) {
-    return {
-      error:
-        "Không tìm thấy con đực.",
-
-      status: 404,
-    };
-  }
-
-  if (!female) {
-    return {
-      error:
-        "Không tìm thấy con cái.",
-
-      status: 404,
-    };
-  }
-
-  if (
-    male.sex !==
-    "MALE"
-  ) {
-    return {
-      error:
-        `"${male.name}" không phải cá thể đực.`,
-
-      status: 400,
-    };
-  }
-
-  if (
-    female.sex !==
-    "FEMALE"
-  ) {
-    return {
-      error:
-        `"${female.name}" không phải cá thể cái.`,
-
-      status: 400,
-    };
-  }
-
-  const sameSpecies =
-    male.speciesId ===
-    female.speciesId;
-
-  // ==================================================
-  // SINH SẢN CÙNG LOÀI
-  // ==================================================
-
-  if (
-    breedingType ===
-    "SAME_SPECIES"
-  ) {
-    if (!sameSpecies) {
-      return {
-        error:
-          `Không thể sinh sản cùng loài: ${male.species.name} × ${female.species.name}. Hãy chọn chế độ "Lai khác loài".`,
-
-        status: 400,
-      };
-    }
-  }
-
-  // ==================================================
-  // LAI KHÁC LOÀI
-  // ==================================================
-
-  if (
-    breedingType ===
-    "CROSSBREED"
-  ) {
-    if (sameSpecies) {
-      return {
-        error:
-          `Hai cá thể đều là ${male.species.name}. Đây là sinh sản cùng loài, không phải lai khác loài.`,
-
-        status: 400,
-      };
-    }
-  }
-
-  return {
-    male,
-    female,
-    error: null,
-    status: 200,
-  };
-}
-
-// ======================================================
-// KIỂM TRA KẾT QUẢ
-// ======================================================
 
 function validateResultData(
-  data: Record<string, any>
+  data: Prisma.BreedingUncheckedCreateInput
 ) {
   if (
-    data.status ===
-    "COMPLETED"
+    data.status !==
+    BreedingStatus.COMPLETED
   ) {
-    const total =
-      data.offspringTotal ??
-      0;
+    return null;
+  }
 
-    const female =
-      data.offspringFemale ??
-      0;
+  const total =
+    data.offspringTotal ?? 0;
 
-    const male =
-      data.offspringMale ??
-      0;
+  const female =
+    data.offspringFemale ?? 0;
 
-    const dead =
-      data.offspringDead ??
-      0;
+  const male =
+    data.offspringMale ?? 0;
 
-    if (
-      female + male >
-      total
-    ) {
-      return (
-        "Số con đực + số con cái không thể lớn hơn tổng số con."
-      );
-    }
+  const dead =
+    data.offspringDead ?? 0;
 
-    if (
-      dead >
-      total
-    ) {
-      return (
-        "Số con chết không thể lớn hơn tổng số con."
-      );
-    }
+  if (female + male > total) {
+    return (
+      "Số con đực + số con cái không thể lớn hơn tổng số con."
+    );
+  }
+
+  if (dead > total) {
+    return (
+      "Số con chết không thể lớn hơn tổng số con."
+    );
   }
 
   return null;
 }
 
-// ======================================================
-// GET
-// ======================================================
+const breedingInclude =
+  Prisma.validator<Prisma.BreedingInclude>()({
+    male: {
+      include: {
+        species: true,
+        morph: true,
+      },
+    },
+
+    female: {
+      include: {
+        species: true,
+        morph: true,
+      },
+    },
+
+    eggs: true,
+
+    offspring: {
+      include: {
+        animal: {
+          include: {
+            species: true,
+            morph: true,
+          },
+        },
+      },
+    },
+  });
 
 export async function GET() {
   try {
     const breedings =
-      await prisma.breeding.findMany(
-        {
-          include: {
-            male: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-                sex: true,
-                weight: true,
-                genetics: true,
+      await prisma.breeding.findMany({
+        include: breedingInclude,
 
-                species: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-
-                morph: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-
-            female: {
-              select: {
-                id: true,
-                code: true,
-                name: true,
-                sex: true,
-                weight: true,
-                genetics: true,
-
-                species: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-
-                morph: {
-                  select: {
-                    id: true,
-                    name: true,
-                  },
-                },
-              },
-            },
-
-            eggs: true,
-
-            offspring: {
-              include: {
-                animal: {
-                  select: {
-                    id: true,
-                    code: true,
-                    name: true,
-                    sex: true,
-                    genetics: true,
-
-                    species: {
-                      select: {
-                        id: true,
-                        name: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-
-          orderBy: {
-            createdAt:
-              "desc",
-          },
-        }
-      );
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
 
     return NextResponse.json(
       breedings
     );
   } catch (error) {
     console.error(
-      "GET /api/breeding error:",
+      "GET /api/breeding:",
       error
     );
 
     return NextResponse.json(
       {
         error:
-          "Không thể lấy danh sách sinh sản.",
+          "Không thể tải dữ liệu sinh sản.",
 
         detail:
           error instanceof Error
             ? error.message
-            : "Lỗi không xác định",
+            : "Lỗi không xác định.",
       },
       {
         status: 500,
@@ -514,18 +435,27 @@ export async function GET() {
   }
 }
 
-// ======================================================
-// POST
-// ======================================================
-
 export async function POST(
   request: NextRequest
 ) {
   try {
     const body =
-      await request.json();
+      (await request.json()) as Record<
+        string,
+        unknown
+      >;
 
-    if (!body.maleId) {
+    const femaleId =
+      typeof body.femaleId === "string"
+        ? body.femaleId.trim()
+        : "";
+
+    const maleId =
+      typeof body.maleId === "string"
+        ? body.maleId.trim()
+        : "";
+
+    if (!maleId) {
       return NextResponse.json(
         {
           error:
@@ -537,7 +467,7 @@ export async function POST(
       );
     }
 
-    if (!body.femaleId) {
+    if (!femaleId) {
       return NextResponse.json(
         {
           error:
@@ -550,70 +480,60 @@ export async function POST(
     }
 
     const breedingType =
-      body.breedingType ===
-      "CROSSBREED"
-        ? "CROSSBREED"
-        : "SAME_SPECIES";
+      parseBreedingType(
+        body.breedingType
+      );
 
     const pair =
       await validateBreedingPair(
-        body.maleId,
-        body.femaleId,
+        maleId,
+        femaleId,
         breedingType
       );
 
     if (pair.error) {
       return NextResponse.json(
         {
-          error:
-            pair.error,
+          error: pair.error,
         },
         {
-          status:
-            pair.status,
+          status: pair.status,
         }
       );
     }
 
-    // ==================================================
-    // KHÔNG CHO CON CÁI ĐANG BẬN PHỐI THÊM
-    // ==================================================
-
-    const femaleAvailability =
+    const availability =
       await validateFemaleAvailability(
-        body.femaleId
+        femaleId
       );
 
-    if (
-      femaleAvailability.error
-    ) {
+    if (availability.error) {
       return NextResponse.json(
         {
           error:
-            femaleAvailability.error,
+            availability.error,
         },
         {
           status:
-            femaleAvailability.status,
+            availability.status,
         }
       );
     }
 
     const data =
-      getBreedingData(
-        body
-      );
+      buildBreedingData({
+        ...body,
+        maleId,
+        femaleId,
+      });
 
     const resultError =
-      validateResultData(
-        data
-      );
+      validateResultData(data);
 
     if (resultError) {
       return NextResponse.json(
         {
-          error:
-            resultError,
+          error: resultError,
         },
         {
           status: 400,
@@ -622,18 +542,11 @@ export async function POST(
     }
 
     const breeding =
-      await prisma.breeding.create(
-        {
-          data,
+      await prisma.breeding.create({
+        data,
 
-          include: {
-            male: true,
-            female: true,
-            eggs: true,
-            offspring: true,
-          },
-        }
-      );
+        include: breedingInclude,
+      });
 
     return NextResponse.json(
       breeding,
@@ -643,7 +556,7 @@ export async function POST(
     );
   } catch (error) {
     console.error(
-      "POST /api/breeding error:",
+      "POST /api/breeding:",
       error
     );
 
@@ -655,7 +568,7 @@ export async function POST(
         detail:
           error instanceof Error
             ? error.message
-            : "Lỗi không xác định",
+            : "Lỗi không xác định.",
       },
       {
         status: 500,
@@ -663,210 +576,21 @@ export async function POST(
     );
   }
 }
-
-// ======================================================
-// PATCH
-// ======================================================
 
 export async function PATCH(
   request: NextRequest
 ) {
   try {
     const body =
-      await request.json();
-
-    if (!body.id) {
-      return NextResponse.json(
-        {
-          error:
-            "Thiếu mã lần phối.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!body.maleId) {
-      return NextResponse.json(
-        {
-          error:
-            "Bạn cần chọn con đực.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!body.femaleId) {
-      return NextResponse.json(
-        {
-          error:
-            "Bạn cần chọn con cái.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const existing =
-      await prisma.breeding.findUnique(
-        {
-          where: {
-            id: body.id,
-          },
-        }
-      );
-
-    if (!existing) {
-      return NextResponse.json(
-        {
-          error:
-            "Không tìm thấy lần phối.",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
-
-    const breedingType =
-      body.breedingType ===
-      "CROSSBREED"
-        ? "CROSSBREED"
-        : "SAME_SPECIES";
-
-    const pair =
-      await validateBreedingPair(
-        body.maleId,
-        body.femaleId,
-        breedingType
-      );
-
-    if (pair.error) {
-      return NextResponse.json(
-        {
-          error:
-            pair.error,
-        },
-        {
-          status:
-            pair.status,
-        }
-      );
-    }
-
-    // ==================================================
-    // KHI SỬA, BỎ QUA CHÍNH LẦN PHỐI ĐANG SỬA
-    // ==================================================
-
-    const femaleAvailability =
-      await validateFemaleAvailability(
-        body.femaleId,
-        body.id
-      );
-
-    if (
-      femaleAvailability.error
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            femaleAvailability.error,
-        },
-        {
-          status:
-            femaleAvailability.status,
-        }
-      );
-    }
-
-    const data =
-      getBreedingData(
-        body
-      );
-
-    const resultError =
-      validateResultData(
-        data
-      );
-
-    if (resultError) {
-      return NextResponse.json(
-        {
-          error:
-            resultError,
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const breeding =
-      await prisma.breeding.update(
-        {
-          where: {
-            id: body.id,
-          },
-
-          data,
-
-          include: {
-            male: true,
-            female: true,
-            eggs: true,
-            offspring: true,
-          },
-        }
-      );
-
-    return NextResponse.json(
-      breeding
-    );
-  } catch (error) {
-    console.error(
-      "PATCH /api/breeding error:",
-      error
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          "Không thể cập nhật lần phối.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Lỗi không xác định",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
-}
-
-// ======================================================
-// DELETE
-// ======================================================
-
-export async function DELETE(
-  request: NextRequest
-) {
-  try {
-    const {
-      searchParams,
-    } = new URL(
-      request.url
-    );
+      (await request.json()) as Record<
+        string,
+        unknown
+      >;
 
     const id =
-      searchParams.get(
-        "id"
-      );
+      typeof body.id === "string"
+        ? body.id.trim()
+        : "";
 
     if (!id) {
       return NextResponse.json(
@@ -881,13 +605,11 @@ export async function DELETE(
     }
 
     const existing =
-      await prisma.breeding.findUnique(
-        {
-          where: {
-            id,
-          },
-        }
-      );
+      await prisma.breeding.findUnique({
+        where: {
+          id,
+        },
+      });
 
     if (!existing) {
       return NextResponse.json(
@@ -901,13 +623,177 @@ export async function DELETE(
       );
     }
 
-    await prisma.breeding.delete(
-      {
+    const maleId =
+      typeof body.maleId === "string"
+        ? body.maleId.trim()
+        : "";
+
+    const femaleId =
+      typeof body.femaleId === "string"
+        ? body.femaleId.trim()
+        : "";
+
+    if (!maleId || !femaleId) {
+      return NextResponse.json(
+        {
+          error:
+            "Bạn cần chọn đầy đủ con đực và con cái.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const breedingType =
+      parseBreedingType(
+        body.breedingType
+      );
+
+    const pair =
+      await validateBreedingPair(
+        maleId,
+        femaleId,
+        breedingType
+      );
+
+    if (pair.error) {
+      return NextResponse.json(
+        {
+          error: pair.error,
+        },
+        {
+          status: pair.status,
+        }
+      );
+    }
+
+    const availability =
+      await validateFemaleAvailability(
+        femaleId,
+        id
+      );
+
+    if (availability.error) {
+      return NextResponse.json(
+        {
+          error:
+            availability.error,
+        },
+        {
+          status:
+            availability.status,
+        }
+      );
+    }
+
+    const data =
+      buildBreedingData({
+        ...body,
+        maleId,
+        femaleId,
+      });
+
+    const resultError =
+      validateResultData(data);
+
+    if (resultError) {
+      return NextResponse.json(
+        {
+          error: resultError,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const updateData: Prisma.BreedingUncheckedUpdateInput =
+      data;
+
+    const breeding =
+      await prisma.breeding.update({
         where: {
           id,
         },
+
+        data: updateData,
+
+        include: breedingInclude,
+      });
+
+    return NextResponse.json(
+      breeding
+    );
+  } catch (error) {
+    console.error(
+      "PATCH /api/breeding:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        error:
+          "Không thể cập nhật lần phối.",
+
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Lỗi không xác định.",
+      },
+      {
+        status: 500,
       }
     );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest
+) {
+  try {
+    const { searchParams } =
+      new URL(request.url);
+
+    const id =
+      searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        {
+          error:
+            "Thiếu mã lần phối.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const existing =
+      await prisma.breeding.findUnique({
+        where: {
+          id,
+        },
+      });
+
+    if (!existing) {
+      return NextResponse.json(
+        {
+          error:
+            "Không tìm thấy lần phối.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    await prisma.breeding.delete({
+      where: {
+        id,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -917,7 +803,7 @@ export async function DELETE(
     });
   } catch (error) {
     console.error(
-      "DELETE /api/breeding error:",
+      "DELETE /api/breeding:",
       error
     );
 
@@ -929,7 +815,7 @@ export async function DELETE(
         detail:
           error instanceof Error
             ? error.message
-            : "Lỗi không xác định",
+            : "Lỗi không xác định.",
       },
       {
         status: 500,
