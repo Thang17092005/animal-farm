@@ -15,6 +15,9 @@ type Animal = {
   id: string;
   code: string;
   name: string;
+  purchasePrice?: string | number | null;
+  salePrice?: string | number | null;
+  status?: string | null;
 };
 
 type Transaction = {
@@ -88,9 +91,11 @@ export default function FinancePage() {
   const [filter, setFilter] = useState<"ALL" | "INCOME" | "EXPENSE">("ALL");
   const [typeFilter, setTypeFilter] = useState<"ALL" | TransactionType>("ALL");
 
-  async function loadData() {
+  async function loadData(showLoading = true) {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       const [txRes, animalRes] = await Promise.all([
         fetch("/api/transactions", { cache: "no-store" }),
         fetch("/api/animals", { cache: "no-store" }),
@@ -108,19 +113,82 @@ export default function FinancePage() {
               id: a.id,
               code: a.code,
               name: a.name,
+              purchasePrice: a.purchasePrice ?? null,
+              salePrice: a.salePrice ?? null,
+              status: a.status ?? null,
             }))
           : []
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể tải dữ liệu.");
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
+  }
+
+  async function refreshDataSilently() {
+    const scrollY =
+      typeof window !== "undefined"
+        ? window.scrollY
+        : 0;
+
+    await loadData(false);
+
+    if (typeof window !== "undefined") {
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollY,
+          behavior: "auto",
+        });
+      });
     }
   }
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const animalTotals = useMemo(() => {
+    let purchaseValue = 0;
+    let expectedSaleValue = 0;
+    let expectedProfit = 0;
+    let soldRevenue = 0;
+    let realizedProfit = 0;
+    let animalsWithPrices = 0;
+    let soldAnimals = 0;
+
+    for (const animal of animals) {
+      const purchase = Number(animal.purchasePrice) || 0;
+      const sale = Number(animal.salePrice) || 0;
+
+      if (purchase > 0 || sale > 0) {
+        animalsWithPrices += 1;
+      }
+
+      purchaseValue += purchase;
+
+      if (animal.status === "SOLD") {
+        soldAnimals += 1;
+        soldRevenue += sale;
+        realizedProfit += sale - purchase;
+      } else {
+        expectedSaleValue += sale;
+        expectedProfit += sale - purchase;
+      }
+    }
+
+    return {
+      purchaseValue,
+      expectedSaleValue,
+      expectedProfit,
+      soldRevenue,
+      realizedProfit,
+      animalsWithPrices,
+      soldAnimals,
+    };
+  }, [animals]);
 
   const totals = useMemo(() => {
     let income = 0;
@@ -132,8 +200,49 @@ export default function FinancePage() {
       else expense += amount;
     }
 
+    // Giá mua của cá thể được tính vào tổng chi tự động.
+    // Nếu đã có giao dịch PURCHASE gắn với chính cá thể đó
+    // thì không cộng giá mua lần nữa để tránh bị nhân đôi.
+    const transactionPurchaseAnimalIds = new Set(
+      transactions
+        .filter(
+          (tx) =>
+            tx.type === "PURCHASE" &&
+            Boolean(tx.animalId)
+        )
+        .map((tx) => tx.animalId as string)
+    );
+
+    for (const animal of animals) {
+      if (!transactionPurchaseAnimalIds.has(animal.id)) {
+        expense += Number(animal.purchasePrice) || 0;
+      }
+    }
+
+    // Khi một cá thể được chuyển sang "Đã bán", giá bán của cá thể
+    // được tính vào doanh thu tự động. Nếu đã có giao dịch SALE
+    // gắn với chính cá thể đó thì không cộng lần nữa.
+    const transactionSaleAnimalIds = new Set(
+      transactions
+        .filter(
+          (tx) =>
+            tx.type === "SALE" &&
+            Boolean(tx.animalId)
+        )
+        .map((tx) => tx.animalId as string)
+    );
+
+    for (const animal of animals) {
+      if (
+        animal.status === "SOLD" &&
+        !transactionSaleAnimalIds.has(animal.id)
+      ) {
+        income += Number(animal.salePrice) || 0;
+      }
+    }
+
     return { income, expense, profit: income - expense };
-  }, [transactions]);
+  }, [transactions, animals]);
 
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
@@ -217,7 +326,7 @@ export default function FinancePage() {
       }
 
       closeForm();
-      await loadData();
+      await refreshDataSilently();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể lưu giao dịch.");
     } finally {
@@ -232,7 +341,7 @@ export default function FinancePage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.detail || data?.error || "Không thể xóa.");
-      await loadData();
+      await refreshDataSilently();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Không thể xóa giao dịch.");
     }
@@ -259,13 +368,63 @@ export default function FinancePage() {
 
         <div className="grid gap-5 md:grid-cols-3">
           <SummaryCard label="Tổng thu" value={formatMoney(totals.income)} icon="📈" />
-          <SummaryCard label="Tổng chi" value={formatMoney(totals.expense)} icon="📉" />
+          <SummaryCard label="Tổng chi (gồm giá mua)" value={formatMoney(totals.expense)} icon="📉" />
           <SummaryCard
             label="Chênh lệch thu - chi"
             value={formatMoney(totals.profit)}
             icon={totals.profit >= 0 ? "💚" : "🔴"}
           />
         </div>
+
+        <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold">📊 Giá trị đàn</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Tự động tính từ giá mua và giá bán của các cá thể.
+            </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard
+              label={`Tổng vốn mua (${animalTotals.animalsWithPrices} con có giá)`}
+              value={formatMoney(animalTotals.purchaseValue)}
+              icon="💰"
+            />
+            <SummaryCard
+              label="Doanh thu đã bán"
+              value={formatMoney(animalTotals.soldRevenue)}
+              icon="💵"
+            />
+            <SummaryCard
+              label={`Giá bán dự kiến (${Math.max(animalTotals.animalsWithPrices - animalTotals.soldAnimals, 0)} con chưa bán)`}
+              value={formatMoney(animalTotals.expectedSaleValue)}
+              icon="🏷️"
+            />
+            <SummaryCard
+              label="Lãi dự kiến chưa bán"
+              value={formatMoney(animalTotals.expectedProfit)}
+              icon={animalTotals.expectedProfit >= 0 ? "📈" : "📉"}
+            />
+          </div>
+
+          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+            <span className="font-semibold text-slate-700">
+              Lãi đã thực hiện từ {animalTotals.soldAnimals} con đã bán:
+            </span>{" "}
+            <span
+              className={
+                animalTotals.realizedProfit >= 0
+                  ? "font-bold text-emerald-700"
+                  : "font-bold text-red-600"
+              }
+            >
+              {formatMoney(animalTotals.realizedProfit)}
+            </span>
+            <span className="ml-2 text-slate-500">
+              (tự động cập nhật theo trạng thái "Đã bán")
+            </span>
+          </div>
+        </section>
 
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -304,7 +463,7 @@ export default function FinancePage() {
               <h2 className="text-xl font-bold">Lịch sử giao dịch</h2>
               <p className="text-sm text-slate-500">{filtered.length} giao dịch</p>
             </div>
-            <button onClick={loadData} className="text-sm font-semibold text-emerald-700 hover:underline">
+            <button onClick={() => loadData()} className="text-sm font-semibold text-emerald-700 hover:underline">
               Làm mới →
             </button>
           </div>
