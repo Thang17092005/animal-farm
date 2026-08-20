@@ -1226,6 +1226,64 @@ export default function AnimalsPage() {
   }
 
   // ============================
+  // TẢI ẢNH VỀ MÁY
+  // ============================
+
+  async function downloadImage(
+    image: AnimalImage,
+    animalName: string
+  ) {
+    try {
+      setFormError("");
+
+      const response = await fetch(image.url);
+
+      if (!response.ok) {
+        throw new Error("Không thể tải ảnh.");
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = blobUrl;
+
+      const contentType = blob.type.toLowerCase();
+      const extension =
+        contentType.includes("png")
+          ? "png"
+          : contentType.includes("webp")
+          ? "webp"
+          : contentType.includes("gif")
+          ? "gif"
+          : "jpg";
+
+      const safeAnimalName =
+        animalName.trim().replace(/[\\/:*?"<>|]/g, "-") ||
+        "animal";
+
+      link.download =
+        `${safeAnimalName}-${image.id}.${extension}`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 1000);
+    } catch (error) {
+      console.error("downloadImage error:", error);
+
+      setFormError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải ảnh về máy."
+      );
+    }
+  }
+
+  // ============================
   // XÓA ẢNH
   // ============================
 
@@ -2807,12 +2865,27 @@ export default function AnimalsPage() {
                                   <button
                                     type="button"
                                     onClick={() =>
+                                      downloadImage(
+                                        image,
+                                        editingAnimal.name
+                                      )
+                                    }
+                                    className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-blue-600"
+                                    title="Tải ảnh về máy"
+                                  >
+                                    ⬇️ Tải
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() =>
                                       deleteImage(
                                         editingAnimal,
                                         image
                                       )
                                     }
                                     className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-600"
+                                    title="Xóa ảnh"
                                   >
                                     🗑️
                                   </button>
